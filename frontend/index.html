@@ -375,6 +375,34 @@
                                 <p class="text-muted" style="font-size:12px;">JPG, PNG, or PDF</p>
                                 <input type="file" id="vouchFileInput" accept=".jpg,.jpeg,.png,.pdf" hidden>
                             </div>
+                            <!-- Consolidated Vouching Summary (Reconciliation) -->
+                            <div id="vouchHistorySection" class="hidden mt-8">
+                                <div class="glass-card p-8">
+                                    <div class="flex items-center justify-between mb-6">
+                                        <h3 class="text-xl font-bold flex items-center gap-3">
+                                            <span class="text-indigo-400">📊</span> Vouching Reconciliation Summary
+                                        </h3>
+                                        <span id="vouchCount" class="text-xs font-medium px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full">0 Invoices</span>
+                                    </div>
+                                    
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left">
+                                            <thead>
+                                                <tr class="text-xs uppercase text-slate-400 border-b border-white/10">
+                                                    <th class="pb-4 px-4">Invoice #</th>
+                                                    <th class="pb-4 px-4">Date</th>
+                                                    <th class="pb-4 px-4">Vendor</th>
+                                                    <th class="pb-4 px-4">Total Amount</th>
+                                                    <th class="pb-4 px-4">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="vouchHistoryBody" class="text-sm divide-y divide-white/5">
+                                                <!-- History rows will be injected here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                             <div id="vouchStatus" class="hidden mt-8" style="padding:12px;border-radius:10px;background:rgba(99,102,241,0.08);">
                                 <div style="display:flex;align-items:center;gap:12px;">
                                     <div class="processing-spinner" style="width:24px;height:24px;"></div>

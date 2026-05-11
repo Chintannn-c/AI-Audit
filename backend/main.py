@@ -495,6 +495,19 @@ async def vouch_invoice(
 
     return {"status": "success", "data": extracted_data, "model_used": model_used}
 
+@app.get("/api/vouch/history")
+async def get_vouch_history(session_id: str):
+    """Fetch all vouching results for a session."""
+    if db is None:
+        return {"data": []}
+    
+    try:
+        vouch_results_coll = db["vouching_results"]
+        results = list(vouch_results_coll.find({"session_id": session_id}, {"_id": 0}).sort("timestamp", -1))
+        return {"data": results}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/vouch/deep-audit")
 async def deep_audit_transaction(
     session_id: str = Form(...),
