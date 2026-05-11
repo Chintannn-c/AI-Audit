@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════
-// StatAudit Pro — High-Performance AI Engine
-// ════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// StatAudit Pro â€” High-Performance AI Engine
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function generateSessionId() {
     return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
@@ -28,7 +28,7 @@ let selectedExactPct = 0.05; // Default for 'Medium' risk
 let selectedCategory = 'Sales';
 let selectedBasis = 'count';
 
-// ── Initialization ──
+// â”€â”€ Initialization â”€â”€
 document.addEventListener('DOMContentLoaded', () => {
     console.log("StatAudit Engine: Initializing...");
     lucide.createIcons();
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let auditChart = null;
 
-// ── Navigation Controller ──
+// â”€â”€ Navigation Controller â”€â”€
 function navigateTo(sectionId) {
     const sections = document.querySelectorAll('.content-section');
     sections.forEach(s => s.classList.add('hidden'));
@@ -167,7 +167,7 @@ function toggleSidebar() {
     if (window.lucide) lucide.createIcons();
 }
 
-// ── Section 1: Materiality Logic ──
+// â”€â”€ Section 1: Materiality Logic â”€â”€
 function selectRisk(risk, btn) {
     const group = btn.parentElement;
     group.querySelectorAll('.toggle-option').forEach(b => b.classList.remove('active'));
@@ -219,17 +219,17 @@ function initMaterialityLogic() {
         const performance = overall * (perfPct / 100);
         const trivial = overall * (trivialPct / 100);
 
-        document.getElementById('resOverall').textContent = `₹ ${overall.toFixed(2)}`;
-        document.getElementById('resPerf').textContent = `₹ ${performance.toFixed(2)}`;
-        document.getElementById('resTrivial').textContent = `₹ ${trivial.toFixed(2)}`;
+        document.getElementById('resOverall').textContent = `â‚¹ ${overall.toFixed(2)}`;
+        document.getElementById('resPerf').textContent = `â‚¹ ${performance.toFixed(2)}`;
+        document.getElementById('resTrivial').textContent = `â‚¹ ${trivial.toFixed(2)}`;
 
         // Sync to Reports section
         const rptO = document.getElementById('rptOverall');
         const rptP = document.getElementById('rptPerf');
         const rptT = document.getElementById('rptTrivial');
-        if (rptO) rptO.textContent = `₹ ${overall.toFixed(2)} `;
-        if (rptP) rptP.textContent = `₹ ${performance.toFixed(2)}`;
-        if (rptT) rptT.textContent = `₹ ${trivial.toFixed(2)}`;
+        if (rptO) rptO.textContent = `â‚¹ ${overall.toFixed(2)} `;
+        if (rptP) rptP.textContent = `â‚¹ ${performance.toFixed(2)}`;
+        if (rptT) rptT.textContent = `â‚¹ ${trivial.toFixed(2)}`;
 
         document.getElementById('materialityPlaceholder').classList.add('hidden');
         document.getElementById('materialityResults').classList.remove('hidden');
@@ -248,7 +248,7 @@ function initMaterialityLogic() {
     });
 }
 
-// ── Section 2: Classification Logic ──
+// â”€â”€ Section 2: Classification Logic â”€â”€
 function initClassificationLogic() {
     const assessBtn = document.getElementById('assessRiskBtn');
     if (!assessBtn) return;
@@ -322,7 +322,7 @@ function updateLiveClassification() {
     }
 }
 
-// ── Section 3: Sampling Logic ──
+// â”€â”€ Section 3: Sampling Logic â”€â”€
 function initSamplingLogic() {
     const zone = document.getElementById('uploadZone');
     const input = document.getElementById('fileUpload');
@@ -425,7 +425,7 @@ async function runVouch(file) {
     a1.style.opacity = '0.4'; d1.style.background = 'var(--text-muted)';
     a2.style.opacity = '0.4'; d2.style.background = 'var(--text-muted)';
     document.getElementById('vouchTableBody').innerHTML = '';
-    document.getElementById('vouchFlagsTitle').textContent = "⏳ Agent 2 Validation";
+    document.getElementById('vouchFlagsTitle').textContent = "â³ Agent 2 Validation";
     document.getElementById('vouchFlagsText').textContent = "Waiting for results...";
 
     a1.style.opacity = '1'; d1.style.background = '#fbbf24';
@@ -448,7 +448,7 @@ async function runVouch(file) {
         const modelName = data.model_used || "AI Ensemble";
         const isOCR = modelName.toLowerCase().includes('tesseract') || modelName.toLowerCase().includes('fallback');
         
-        document.getElementById('agent1Name').textContent = isOCR ? `Agent 1 — OCR Active` : `Agent 1 — ${modelName}`;
+        document.getElementById('agent1Name').textContent = isOCR ? `Agent 1 â€” OCR Active` : `Agent 1 â€” ${modelName}`;
         document.getElementById('agent1Dot').style.background = isOCR ? '#f59e0b' : '#10b981'; // Orange for OCR, Green for AI
         
         d2.style.background = '#10b981';
@@ -466,7 +466,7 @@ async function runVouch(file) {
         const matchStatusField = data.data.find(r => r.field === 'Match Status');
         const matchStatusText = matchStatusField ? matchStatusField.value : "Data extracted successfully.";
 
-        document.getElementById('vouchFlagsTitle').textContent = "✅ Verification Complete";
+        document.getElementById('vouchFlagsTitle').textContent = "âœ… Verification Complete";
         document.getElementById('vouchFlagsText').textContent = `AI Ensemble status: ${matchStatusText} (via ${modelName})`;
         
         // Show Regen Button
@@ -628,7 +628,7 @@ function renderPreview(records) {
             const cat = (r[k] || 'Low').toLowerCase();
             return `<td><span class="badge badge-${cat}">${r[k] || 'LOW'}</span></td>`;
         }
-        return `<td>${r[k] !== null ? r[k] : '—'}</td>`;
+        return `<td>${r[k] !== null ? r[k] : 'â€”'}</td>`;
     }).join('')}</tr>`).join('');
 }
 
@@ -645,7 +645,7 @@ function updateChart(stats) {
         data: {
             labels: ['Minimum', 'Average', 'Maximum'],
             datasets: [{
-                label: 'Transaction Value (₹)',
+                label: 'Transaction Value (â‚¹)',
                 data: [stats.minimum, stats.average, stats.maximum],
                 backgroundColor: ['rgba(16,185,129,0.5)', 'rgba(99,102,241,0.5)', 'rgba(239,68,68,0.5)'],
                 borderColor: ['#10b981', '#6366f1', '#ef4444'],
@@ -664,7 +664,7 @@ function updateChart(stats) {
     });
 }
 
-// ── Processing Overlay Animation ──
+// â”€â”€ Processing Overlay Animation â”€â”€
 let stepInterval = null;
 
 function showProcessingSteps() {
@@ -674,7 +674,7 @@ function showProcessingSteps() {
     const steps = document.querySelectorAll('#processingSteps li');
     steps.forEach(li => {
         li.classList.remove('active', 'done');
-        li.querySelector('.step-icon').textContent = '○';
+        li.querySelector('.step-icon').textContent = 'â—‹';
     });
 
     let current = 0;
@@ -683,11 +683,11 @@ function showProcessingSteps() {
         if (current > 0 && current <= steps.length) {
             steps[current - 1].classList.remove('active');
             steps[current - 1].classList.add('done');
-            steps[current - 1].querySelector('.step-icon').textContent = '✓';
+            steps[current - 1].querySelector('.step-icon').textContent = 'âœ“';
         }
         if (current < steps.length) {
             steps[current].classList.add('active');
-            steps[current].querySelector('.step-icon').textContent = '●';
+            steps[current].querySelector('.step-icon').textContent = 'â—';
         }
         current++;
         if (current > steps.length + 1) clearInterval(stepInterval);
@@ -712,7 +712,7 @@ function selectBasis(btn) {
     selectedBasis = btn.dataset.basis;
 }
 
-// ── Forensic Dashboard Renderer ──
+// â”€â”€ Forensic Dashboard Renderer â”€â”€
 let trendChart = null;
 
 function renderDashboard(db) {
@@ -752,7 +752,7 @@ function renderDashboard(db) {
     const vendorRows = topVendors.map((v, i) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < topVendors.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.06);' : ''}">
             <span style="font-size:12px;color:var(--text-primary);">${v.name}</span>
-            <span style="font-size:12px;font-weight:700;color:var(--accent-primary);">₹${Number(v.value).toLocaleString()}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--accent-primary);">â‚¹${Number(v.value).toLocaleString()}</span>
         </div>`
     ).join('');
 
@@ -760,14 +760,14 @@ function renderDashboard(db) {
     const spikeMonths = trends.filter(t => t.is_spike);
     const spikeWarning = spikeMonths.length > 0
         ? `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:11px;color:#ef4444;">
-            ⚠️ Anomalous spikes detected in: ${spikeMonths.map(s => `<strong>${s.month}</strong> (z=${s.z_score})`).join(', ')}
+            âš ï¸ Anomalous spikes detected in: ${spikeMonths.map(s => `<strong>${s.month}</strong> (z=${s.z_score})`).join(', ')}
            </div>`
         : '';
 
     container.innerHTML = `
         <div class="glass-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h3 style="font-size:16px;">🔬 Forensic Intelligence Dashboard</h3>
+                <h3 style="font-size:16px;">ðŸ”¬ Forensic Intelligence Dashboard</h3>
                 <div class="badge badge-low" style="font-size:10px;">AI POWERED</div>
             </div>
 
@@ -843,7 +843,7 @@ function renderTrendChart(trends) {
             labels,
             datasets: [
                 {
-                    label: 'Txn Value (₹)',
+                    label: 'Txn Value (â‚¹)',
                     data: values,
                     backgroundColor: bgColors,
                     borderColor: borderColors,
@@ -891,58 +891,43 @@ function renderTrendChart(trends) {
             }
         }
     });
+async function updateVouchHistory() {
+    const section = document.getElementById('vouchHistorySection');
+    const body = document.getElementById('vouchHistoryBody');
+    const count = document.getElementById('vouchCount');
+    
+    if (!section || !body || !sessionId) return;
+    
+    try {
+        const res = await fetch(`/api/vouch/history?session_id=${sessionId}`);
+        const data = await res.json();
+        
+        if (data.data && data.data.length > 0) {
+            section.classList.remove('hidden');
+            count.textContent = `${data.data.length} Invoices Processed`;
+            
+            body.innerHTML = data.data.map(res => {
+                const fields = {};
+                if (res.extracted_data) {
+                    res.extracted_data.forEach(item => fields[item.field] = item.value);
+                }
+                
+                return `
+                    <tr class="hover:bg-white/5 transition-colors">
+                        <td class="py-4 px-4 font-medium">${fields['Invoice Number'] || 'N/A'}</td>
+                        <td class="py-4 px-4 text-slate-400">${fields['Date'] || 'N/A'}</td>
+                        <td class="py-4 px-4">${fields['Vendor Name'] || 'Extracted'}</td>
+                        <td class="py-4 px-4 font-bold text-indigo-400">${fields['Grand Total'] || '0.00'}</td>
+                        <td class="py-4 px-4">
+                            <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Verified</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    } catch (err) {
+        console.error('History Error:', err);
+    }
 }
 
 
- a s y n c   f u n c t i o n   u p d a t e V o u c h H i s t o r y ( )   { 
-         c o n s t   s e c t i o n   =   d o c u m e n t . g e t E l e m e n t B y I d ( ' v o u c h H i s t o r y S e c t i o n ' ) ; 
-         c o n s t   b o d y   =   d o c u m e n t . g e t E l e m e n t B y I d ( ' v o u c h H i s t o r y B o d y ' ) ; 
-         c o n s t   c o u n t   =   d o c u m e n t . g e t E l e m e n t B y I d ( ' v o u c h C o u n t ' ) ; 
-         
-         t r y   { 
-                 c o n s t   r e s   =   a w a i t   f e t c h ( \ / a p i / v o u c h / h i s t o r y ? s e s s i o n _ i d = \ \ ) ; 
-                 c o n s t   d a t a   =   a w a i t   r e s . j s o n ( ) ; 
-                 
-                 i f   ( d a t a . d a t a   & &   d a t a . d a t a . l e n g t h   >   0 )   { 
-                         s e c t i o n . c l a s s L i s t . r e m o v e ( ' h i d d e n ' ) ; 
-                         c o u n t . t e x t C o n t e n t   =   \ \   I n v o i c e s   P r o c e s s e d \ ; 
-                         
-                         b o d y . i n n e r H T M L   =   d a t a . d a t a . m a p ( r e s   = >   { 
-                                 c o n s t   f i e l d s   =   { } ; 
-                                 r e s . e x t r a c t e d _ d a t a . f o r E a c h ( i t e m   = >   f i e l d s [ i t e m . f i e l d ]   =   i t e m . v a l u e ) ; 
-                                 
-                                 r e t u r n   \ 
-                                         < t r   c l a s s = \  
- h o v e r : b g - w h i t e / 5  
- t r a n s i t i o n - c o l o r s \ > 
-                                                 < t d   c l a s s = \ p y - 4  
- p x - 4  
- f o n t - m e d i u m \ > \ < / t d > 
-                                                 < t d   c l a s s = \ p y - 4  
- p x - 4  
- t e x t - s l a t e - 4 0 0 \ > \ < / t d > 
-                                                 < t d   c l a s s = \ p y - 4  
- p x - 4 \ > \ < / t d > 
-                                                 < t d   c l a s s = \ p y - 4  
- p x - 4  
- f o n t - b o l d  
- t e x t - i n d i g o - 4 0 0 \ > \ < / t d > 
-                                                 < t d   c l a s s = \ p y - 4  
- p x - 4 \ > 
-                                                         < s p a n   c l a s s = \ p x - 2  
- p y - 1  
- b g - g r e e n - 5 0 0 / 2 0  
- t e x t - g r e e n - 4 0 0  
- t e x t - x s  
- r o u n d e d - f u l l \ > V e r i f i e d < / s p a n > 
-                                                 < / t d > 
-                                         < / t r > 
-                                 \ ; 
-                         } ) . j o i n ( ' ' ) ; 
-                 } 
-         }   c a t c h   ( e r r )   { 
-                 c o n s o l e . e r r o r ( ' H i s t o r y   E r r o r : ' ,   e r r ) ; 
-         } 
- } 
-  
- 

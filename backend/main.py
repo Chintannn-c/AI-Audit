@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+import os
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, StreamingResponse, Response
@@ -5,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import pandas as pd
 import io
-import os
 import json
 import traceback
 import numpy as np
@@ -17,9 +20,6 @@ from report_generator import AuditReportGenerator
 from materiality import MaterialityCalculator
 from risk_assessment import RiskAssessmentEngine
 from ai_engine import ai_engine
-from dotenv import load_dotenv
-
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 app = FastAPI(title="StatAudit Pro - Enterprise AI Sampling")
 
