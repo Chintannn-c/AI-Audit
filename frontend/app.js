@@ -218,17 +218,17 @@ function initMaterialityLogic() {
         const performance = overall * (perfPct / 100);
         const trivial = overall * (trivialPct / 100);
 
-        document.getElementById('resOverall').textContent = `₹ ${overall.toFixed(2)} Cr`;
-        document.getElementById('resPerf').textContent = `₹ ${performance.toFixed(2)} Cr`;
-        document.getElementById('resTrivial').textContent = `₹ ${trivial.toFixed(2)} Cr`;
+        document.getElementById('resOverall').textContent = `₹ ${overall.toFixed(2)}`;
+        document.getElementById('resPerf').textContent = `₹ ${performance.toFixed(2)}`;
+        document.getElementById('resTrivial').textContent = `₹ ${trivial.toFixed(2)}`;
 
         // Sync to Reports section
         const rptO = document.getElementById('rptOverall');
         const rptP = document.getElementById('rptPerf');
         const rptT = document.getElementById('rptTrivial');
-        if (rptO) rptO.textContent = `₹ ${overall.toFixed(2)} Cr`;
-        if (rptP) rptP.textContent = `₹ ${performance.toFixed(2)} Cr`;
-        if (rptT) rptT.textContent = `₹ ${trivial.toFixed(2)} Cr`;
+        if (rptO) rptO.textContent = `₹ ${overall.toFixed(2)} `;
+        if (rptP) rptP.textContent = `₹ ${performance.toFixed(2)}`;
+        if (rptT) rptT.textContent = `₹ ${trivial.toFixed(2)}`;
 
         document.getElementById('materialityPlaceholder').classList.add('hidden');
         document.getElementById('materialityResults').classList.remove('hidden');

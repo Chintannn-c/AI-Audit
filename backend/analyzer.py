@@ -658,12 +658,7 @@ class AuditAnalyzer:
             if tod_cumval >= tod_target:
                 break
         
-        # Fill from deferred if target not met
-        for idx in deferred:
-            if tod_cumval >= tod_target:
-                break
-            tod_rows.append(idx)
-            tod_cumval += abs(sorted_data.loc[idx, self.amount_col])
+        # NO BACKFILL from deferred — User requested strict unique vendors/parties
 
         if not tod_rows:
             tod_rows = [sorted_data.index[0]]
@@ -744,22 +739,6 @@ class AuditAnalyzer:
                     toc = pd.concat([toc, extra])
                     print(f"    [VALUE] BACKFILL (Stage 1): Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
 
-                # Stage 2: If still short on value, allow vendor overlap
-                if combined_value < target_value:
-                    all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
-                    leftover = sorted_data[~sorted_data.index.isin(all_selected)]
-                    leftover = leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
-                    
-                    extra_rows = []
-                    for idx, row in leftover.iterrows():
-                        extra_rows.append(idx)
-                        combined_value += abs(row[self.amount_col])
-                        if combined_value >= target_value:
-                            break
-                    if extra_rows:
-                        extra = sorted_data.loc[extra_rows].copy()
-                        toc = pd.concat([toc, extra])
-                        print(f"    [VALUE] BACKFILL (Stage 2): Added {len(extra)} extra rows to TOC (Relaxed Overlap)")
 
         print(f"    [VALUE] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} rows")
 
