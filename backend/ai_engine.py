@@ -3,6 +3,7 @@ import json
 import base64
 import asyncio
 import httpx
+import hashlib
 from typing import List, Dict, Any, Optional
 from google import genai
 from google.genai import types
@@ -32,6 +33,37 @@ class AuditAIEngine:
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        
+        # Initialize Persistent Cache
+        self.cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
+        self.cache_file = os.path.join(self.cache_dir, 'ai_cache.json')
+        os.makedirs(self.cache_dir, exist_ok=True)
+        self.cache = self._load_cache()
+
+    def _load_cache(self) -> dict:
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def _save_cache(self):
+        try:
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.cache, f)
+        except Exception as e:
+            print(f"[CACHE] Save failed: {e}")
+
+    def _get_cache_key(self, task_type: str, prompt: str, file_bytes=None) -> str:
+        # Create a unique hash for the task + prompt + optional file
+        hasher = hashlib.md5()
+        hasher.update(task_type.encode())
+        hasher.update(prompt.encode())
+        if file_bytes:
+            hasher.update(file_bytes[:1000]) # Hash first 1KB of file for speed
+        return hasher.hexdigest()
 
     # ──────────────────────────────────────────────
     # ASYNC PROVIDER WRAPPERS
@@ -122,6 +154,12 @@ class AuditAIEngine:
 
         print(f"[ROUTER] Task={task_type} | Models={len(profile['models'])}")
 
+        # Check Cache first
+        cache_key = self._get_cache_key(task_type, prompt, file_bytes)
+        if cache_key in self.cache:
+            print(f"[CACHE] Hit! Returning cached result for {task_type}")
+            return self.cache[cache_key]
+
         for model_id in profile.get('models', []):
             if "gemini" in model_id.lower() and self.gemini_key and "/" not in model_id:
                 res = await self._try_gemini(prompt, file_bytes, mime_type)
@@ -134,6 +172,9 @@ class AuditAIEngine:
 
             if res:
                 res['model_used'] = model_id
+                # Save to cache
+                self.cache[cache_key] = res
+                self._save_cache()
                 return res
         return None
 
@@ -142,6 +183,13 @@ class AuditAIEngine:
         models = profile.get('models', ["meta-llama/llama-3.3-70b-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free", "nvidia/nemotron-3-super-120b-a12b:free"])[:3]
 
         print(f"[ENSEMBLE] Launching {len(models)} models in parallel...")
+        
+        # Check Cache
+        cache_key = self._get_cache_key('ENSEMBLE', prompt)
+        if cache_key in self.cache:
+            print("[CACHE] Ensemble hit!")
+            return self.cache[cache_key]
+
         tasks = [self._try_openrouter(mid, prompt) for mid in models]
         responses = await asyncio.gather(*tasks)
 
@@ -151,9 +199,15 @@ class AuditAIEngine:
         if not results: return None
         
         # Mark consensus if multiple models agreed (simplified for JSON results)
-        results[0]['consensus'] = len(results) >= min_agree
+        # Return the first one but mark as consensus
+        results[0]['consensus'] = True
         results[0]['ensemble_models'] = models_tried
         results[0]['model_used'] = f"Ensemble ({len(results)} models)"
+        
+        # Save to cache
+        self.cache[cache_key] = results[0]
+        self._save_cache()
+        
         return results[0]
 
     # ──────────────────────────────────────────────

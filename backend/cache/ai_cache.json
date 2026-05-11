@@ -1,0 +1,1 @@
+{"63274c80dbf3f0deba79b484cd9bcfd8": {"summary": "The audit covered a large dataset with 100 rows and 5000 data values. Key insights were focused on trends and consistency across the record set.", "focus": "Data consistency and statistical validity", "model_used": "liquid/lfm-2.5-1.2b-instruct:free"}}
