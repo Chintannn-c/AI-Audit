@@ -182,14 +182,13 @@ class AuditAIEngine:
                 models_tried.append("Groq")
 
         if self.or_client and len(results) < 3:
-            for model_id in ['openai/gpt-4o-mini', 'anthropic/claude-3-haiku']:
-                if len(results) >= 3:
-                    break
-                r = self._try_openrouter(model_id, prompt)
-                if r:
-                    r['model_used'] = f"OpenRouter: {model_id}"
-                    results.append(r)
-                    models_tried.append(model_id)
+            # Use the S-Tier model as the professional forensic tie-breaker
+            model_id = "anthropic/claude-3.5-sonnet"
+            r = self._try_openrouter(model_id, prompt)
+            if r:
+                r['model_used'] = f"OpenRouter: {model_id}"
+                results.append(r)
+                models_tried.append(model_id)
 
         if len(results) < min_agree:
             if results:
