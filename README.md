@@ -5,18 +5,18 @@ StatAudit AI is a high-performance, hardened AI infrastructure designed for prof
 ## 🚀 Key Features
 
 - **Autonomous Vouching**: Automatically extracts data from uploaded invoices (PDF/Images) and matches them against ledger records.
-- **Ultra-Resilient AI Pipeline**: Features an 8-tier failover system to ensure zero downtime, even during API rate limits:
-  1. **Gemini 3.1 Pro & 3.0 Pro** (Primary Reasoning)
-  2. **Gemini 2.0 Flash** (High-speed Multimodal)
-  3. **Hugging Face Qwen2-VL** (Secondary API Fallback)
-  4. **Local Tesseract OCR** (Absolute Offline Last-Resort)
+- **Ultra-Resilient AI Pipeline**: Features a 20+ model orchestration system powered by **Gemini, Groq, and OpenRouter** to ensure zero downtime:
+  1. **Primary**: **Gemini 2.0 Flash** (High-speed Multimodal & Reasoning)
+  2. **Secondary**: **Groq (Llama 3 70B)** (Lightning-fast text failover)
+  3. **Tertiary**: **OpenRouter Ensemble** (Failover access to **GPT-4o, Claude 3.5 Sonnet, Llama 3.1 405B, DeepSeek**, and more)
+  4. **Last Resort**: **Local Tesseract OCR** (Offline extraction fallback)
 - **Materiality Engine**: Synchronized frontend/backend materiality calculations with dynamic percentage overrides.
 - **Hardened Risk Assessment**: Quantitative and qualitative risk logic that automatically classifies audit depth (TOC/TOD) based on governance and misstatement history.
 - **Multimodal Support**: Native handling of PDFs and Images using PyMuPDF and Pillow.
 
 ## 🛠️ Tech Stack
 
-- **Backend**: FastAPI (Python), MongoDB, Google GenAI SDK, Hugging Face Hub, PyMuPDF.
+- **Backend**: FastAPI (Python), MongoDB, Google GenAI, Groq, OpenRouter (OpenAI SDK), Hugging Face Hub.
 - **Frontend**: Vanilla JS (Dynamic UI), CSS3 (Modern Glassmorphism Design).
 - **OCR**: Pytesseract (Local Fallback).
 
