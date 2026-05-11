@@ -495,6 +495,39 @@ async def vouch_invoice(
 
     return {"status": "success", "data": extracted_data, "model_used": model_used}
 
+@app.get("/api/download/vouching")
+async def download_vouching_report(session_id: str):
+    """Generates a vouching-only reconciliation report."""
+    try:
+        if db is None:
+            return JSONResponse(status_code=400, content={"error": "Database not connected"})
+            
+        vouch_results_coll = db["vouching_results"]
+        results = list(vouch_results_coll.find({"session_id": session_id}, {"_id": 0}).sort("timestamp", -1))
+        
+        if not results:
+            return JSONResponse(status_code=400, content={"error": "No vouching results found for this session"})
+            
+        # Create a report with empty sampling data
+        report = AuditReportGenerator(
+            original_df=pd.DataFrame(),
+            tod=pd.DataFrame(), toc=pd.DataFrame(),
+            stats={'count': 0, 'sum': 0}, category="Forensic Vouching",
+            risk_analysis={},
+            sampling_config={}
+        )
+        
+        output = report.generate(vouching_results=results)
+        
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=Vouching_Reconciliation_Report.xlsx"}
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.get("/api/vouch/history")
 async def get_vouch_history(session_id: str):
     """Fetch all vouching results for a session."""

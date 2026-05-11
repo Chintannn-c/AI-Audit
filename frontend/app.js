@@ -494,7 +494,7 @@ function regenerateVouch() {
 
 async function runDownload() {
     if (!uploadedFile) return alert("Please upload a ledger file first.");
-
+    
     const samplePct = document.getElementById('samplePctSlider').value;
     const todPct = isLargeAudit ? (document.getElementById('todPctSlider')?.value || 70) : 100;
 
@@ -513,6 +513,27 @@ async function runDownload() {
         const a = document.createElement('a');
         a.href = url;
         a.download = `Audit_Working_Papers_${selectedCategory}_${samplePct}pct.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error(err);
+        alert('Download Error: ' + err.message);
+    }
+}
+
+async function runVouchingDownload() {
+    try {
+        const res = await fetch(`/api/download/vouching?session_id=${sessionId}`);
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || 'Failed to download report');
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Vouching_Reconciliation_Report.xlsx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
