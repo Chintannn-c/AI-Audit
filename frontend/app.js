@@ -546,7 +546,7 @@ async function runVouchingDownload() {
 async function runAnalysis() {
     if (!uploadedFile) return alert("Please upload a ledger file first.");
 
-    const samplePct = document.getElementById('samplePctSlider')?.value || 10;
+    const samplePct = document.getElementById('samplePctSlider')?.value || 30;
     const todPct = isLargeAudit ? (document.getElementById('todPctSlider')?.value || 70) : 100;
 
     const fd = new FormData();
