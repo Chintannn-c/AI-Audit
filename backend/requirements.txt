@@ -13,3 +13,4 @@ pymupdf
 python-dotenv
 pymongo
 xlsxwriter
+numpy
