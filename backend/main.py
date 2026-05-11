@@ -338,6 +338,14 @@ async def download_report(
             'amount_col': analyzer.amount_col or ''
         }
 
+        # Fetch Vouching Results for this session
+        vouching_results = []
+        if db is not None:
+            try:
+                vouching_results = list(db["vouching_results"].find({"session_id": session_id}))
+            except Exception:
+                pass
+
         report = AuditReportGenerator(
             original_df=df,
             tod=tod, toc=toc,
@@ -349,7 +357,7 @@ async def download_report(
             context.get("materiality", {}),
             context.get("risk", {})
         )
-        output = report.generate()
+        output = report.generate(vouching_results=vouching_results)
 
         # Store generated Working Paper in GridFS
         wp_file_id = None
@@ -462,6 +470,22 @@ async def vouch_invoice(
             {"field": "GSTIN", "value": "N/A"},
             {"field": "Match Status", "value": "FALLBACK - Extraction failed"}
         ]
+
+    # Store vouching results in MongoDB for persistence and Excel reporting
+    if db is not None:
+        try:
+            vouch_results_coll = db["vouching_results"]
+            vouch_results_coll.update_one(
+                {"session_id": session_id, "filename": file.filename},
+                {"$set": {
+                    "extracted_data": extracted_data,
+                    "model_used": model_used,
+                    "timestamp": datetime.now(timezone.utc)
+                }},
+                upsert=True
+            )
+        except Exception as db_err:
+            print(f"[ERROR] Failed to store vouching result: {db_err}")
 
     log_audit_action(session_id, "VOUCH_INVOICE", {
         "file": file.filename,

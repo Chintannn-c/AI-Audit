@@ -24,9 +24,9 @@ class AuditAIEngine:
                        'liquid/lfm-2.5-1.2b-instruct:free', 'meta-llama/llama-3.2-3b-instruct:free'],
         },
         'VOUCHING': {
-            'description': 'Multimodal extraction (100% FREE)',
-            'models': ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.2-11b-vision-instruct:free', 
-                       'nvidia/nemotron-nano-12b-v2-vl:free', 'baidu/qianfan-ocr-fast:free'],
+            'description': 'Text-to-JSON structured extraction (100% FREE)',
+            'models': ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.3-70b-instruct:free', 
+                       'qwen/qwen3-coder:free', 'nvidia/nemotron-nano-12b-v2-vl:free'],
         },
     }
 

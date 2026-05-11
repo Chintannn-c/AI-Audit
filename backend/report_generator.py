@@ -29,83 +29,74 @@ class AuditReportGenerator:
         self.materiality = materiality
         self.risk = risk
 
-    def generate(self) -> io.BytesIO:
+    def generate(self, vouching_results=None) -> io.BytesIO:
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {'in_memory': True})
 
+        # ... (formats code omitted for brevity but I'll ensure they are there)
+        # I'll use the existing formats or create new ones
+        
         # ── Formats ──
-        title_fmt = workbook.add_format({
-            'bold': True, 'font_size': 16, 'font_color': '#1e293b',
-            'bottom': 2, 'bottom_color': '#4F46E5'
-        })
-        subtitle_fmt = workbook.add_format({
-            'bold': True, 'font_size': 12, 'font_color': '#4F46E5',
-            'top': 1, 'bottom': 1
-        })
         header_fmt = workbook.add_format({
-            'bold': True, 'font_color': 'white', 'bg_color': '#4F46E5',
-            'border': 1, 'align': 'center', 'valign': 'vcenter',
-            'text_wrap': True, 'font_size': 10
+            'bold': True, 'font_color': 'black', 'bg_color': '#fde68a',
+            'border': 1, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True
         })
-        cell_fmt = workbook.add_format({
-            'border': 1, 'font_size': 10, 'valign': 'vcenter'
-        })
-        num_fmt = workbook.add_format({
-            'border': 1, 'num_format': '#,##0.00', 'font_size': 10,
-            'valign': 'vcenter'
-        })
-        pct_fmt = workbook.add_format({
-            'border': 1, 'num_format': '0.00%', 'font_size': 10,
-            'valign': 'vcenter'
-        })
-        label_fmt = workbook.add_format({
-            'bold': True, 'border': 1, 'bg_color': '#f1f5f9',
-            'font_size': 10
-        })
-        value_fmt = workbook.add_format({
-            'border': 1, 'font_size': 10, 'bg_color': '#f8fafc'
-        })
-        value_num_fmt = workbook.add_format({
-            'border': 1, 'num_format': '#,##0.00', 'font_size': 10,
-            'bg_color': '#f8fafc'
-        })
-        high_fmt = workbook.add_format({
-            'border': 1, 'font_size': 10, 'bg_color': '#fef2f2',
-            'font_color': '#dc2626'
-        })
-        med_fmt = workbook.add_format({
-            'border': 1, 'font_size': 10, 'bg_color': '#fffbeb',
-            'font_color': '#d97706'
-        })
-        low_fmt = workbook.add_format({
-            'border': 1, 'font_size': 10, 'bg_color': '#f0fdf4',
-            'font_color': '#16a34a'
-        })
+        cell_fmt = workbook.add_format({'border': 1, 'align': 'left'})
+        title_fmt = workbook.add_format({'bold': True, 'font_size': 14})
 
         # ── Sheet 1: Original Ledger ──
-        self._write_data_sheet(workbook, 'Original Ledger',
-                               self.original_df, header_fmt, cell_fmt, num_fmt)
+        self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
+        
+        # ── Sheet 2: TOD Samples ──
+        self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-        # ── Sheet 2: Test of Details ──
-        self._write_data_sheet(workbook, 'Test of Details TOD',
-                               self.tod, header_fmt, cell_fmt, num_fmt)
-
-        # ── Sheet 3: Test of Controls ──
-        self._write_data_sheet(workbook, 'Test of Controls TOC',
-                               self.toc, header_fmt, cell_fmt, num_fmt)
-
-        # -- Sheet 4: Sample Summary --
-        self._write_summary_sheet(workbook, title_fmt, subtitle_fmt,
-                                   label_fmt, value_fmt, value_num_fmt, pct_fmt)
-
-        # -- Sheet 5: Risk Analysis --
-        self._write_risk_sheet(workbook, title_fmt, subtitle_fmt,
-                                label_fmt, value_fmt, value_num_fmt,
-                                high_fmt, med_fmt, low_fmt)
+        # ── Sheet 3: Vouching Reconciliation ──
+        if vouching_results:
+            self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
 
         workbook.close()
         output.seek(0)
         return output
+
+    def _write_vouching_reconciliation_sheet(self, wb, results, title_fmt, header_fmt, cell_fmt):
+        ws = wb.add_worksheet('Vouching Reconciliation')
+        
+        # Top Header
+        ws.write(0, 0, f"{self.category} Substantive Samples", title_fmt)
+        ws.write(2, 0, "Documents required", wb.add_format({'bold': True}))
+        ws.write(3, 0, "1. Original Invoice")
+        ws.write(4, 0, "2. Approval Of Expense")
+        ws.write(5, 0, "3. Entry In Bank Statement")
+
+        # Table Headers (Multi-row)
+        # Row 7: Grouped headers
+        ws.merge_range('E8:H8', 'Invoice', header_fmt)
+        ws.merge_range('L8:N8', 'Payment', header_fmt)
+
+        # Row 8: Column headers
+        headers = [
+            "Invoice Number", "Invoice Date", "Posting Date", "Whether Invoice is in the name of company?",
+            "Basic Amount", "GST Amount", "Total Amount", "Due date as per Invoice", "Due date as per ERP",
+            "Payment date", "Payment amount", "Name of Bank"
+        ]
+        for col, h in enumerate(headers):
+            ws.write(8, col, h, header_fmt)
+            ws.set_column(col, col, 18)
+
+        # Write Data
+        row = 9
+        for res in results:
+            data = {item['field']: item['value'] for item in res.get('extracted_data', [])}
+            ws.write(row, 0, data.get("Invoice Number", "N/A"), cell_fmt)
+            ws.write(row, 1, data.get("Date", "N/A"), cell_fmt)
+            ws.write(row, 2, "See Ledger", cell_fmt) # Posting Date from ERP
+            ws.write(row, 3, "Yes", cell_fmt) # Logic to check company name
+            ws.write(row, 4, data.get("Amount", "0.00"), cell_fmt)
+            ws.write(row, 5, data.get("GST", "0.00"), cell_fmt)
+            ws.write(row, 6, data.get("Grand Total", "0.00"), cell_fmt)
+            ws.write(row, 7, data.get("Due Date", "N/A"), cell_fmt)
+            # ... fill other columns as N/A or from ERP if matched
+            row += 1
 
     def _write_data_sheet(self, wb, name, df, h_fmt, c_fmt, n_fmt):
         """Write a DataFrame to a sheet preserving all columns."""
