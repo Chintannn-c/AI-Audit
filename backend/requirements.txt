@@ -12,3 +12,4 @@ Pillow
 pymupdf
 python-dotenv
 pymongo
+xlsxwriter
