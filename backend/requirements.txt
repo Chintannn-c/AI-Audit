@@ -12,4 +12,3 @@ Pillow
 pymupdf
 python-dotenv
 pymongo
-gridfs

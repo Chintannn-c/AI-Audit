@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["...", "tesseract", "tesseract-ocr-eng", "libgl1"]
+nixPkgs = ["python3", "tesseract", "libGL", "zlib"]
 
 [phases.build]
 cmds = ["pip install -r backend/requirements.txt"]
