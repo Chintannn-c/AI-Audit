@@ -459,12 +459,18 @@ class AuditAnalyzer:
         combined = len(tod) + len(toc)
         if combined < total_samples:
             shortfall = total_samples - combined
-            all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
-            leftover = scored[~scored.index.isin(all_selected)]
+            # ── COVERAGE GUARANTEE: If combined < target, backfill from unused rows (Strict Unique Party) ──
+            all_selected_indices = set(tod.index.tolist()) | set(toc.index.tolist())
+            leftover = scored[~scored.index.isin(all_selected_indices)]
+            
+            # Strict Exclusion: Also exclude vendors already in TOD for the backfill
+            if vcol and vcol in leftover.columns and tod_vendors:
+                leftover = leftover[~leftover[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+                
             if len(leftover) > 0:
                 extra = leftover.sample(n=min(shortfall, len(leftover)), random_state=42)
                 toc = pd.concat([toc, extra])
-                print(f"    [COUNT] BACKFILL: Added {len(extra)} extra rows to TOC to guarantee {sample_pct}% coverage")
+                print(f"    [COUNT] BACKFILL: Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
 
         print(f"    [COUNT] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} / {total_rows} = {(len(tod)+len(toc))/total_rows*100:.1f}%")
 
@@ -587,11 +593,16 @@ class AuditAnalyzer:
 
         print(f"    [VALUE] TOC: {len(toc)} rows, cumval={toc_cumval:.2f}")
 
-        # ── COVERAGE GUARANTEE: If combined value < target, backfill ──
+        # ── COVERAGE GUARANTEE: If combined value < target, backfill (Strict Unique Party) ──
         combined_value = tod_cumval + toc_cumval
         if combined_value < target_value:
             all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
             leftover = sorted_data[~sorted_data.index.isin(all_selected)]
+            
+            # Strict Exclusion: Also exclude vendors already in TOD for the backfill
+            if vcol and vcol in leftover.columns and tod_vendors:
+                leftover = leftover[~leftover[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+                
             # Sort leftover by value desc so we fill the gap fastest
             leftover = leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
             extra_rows = []
@@ -603,7 +614,7 @@ class AuditAnalyzer:
             if extra_rows:
                 extra = sorted_data.loc[extra_rows].copy()
                 toc = pd.concat([toc, extra])
-                print(f"    [VALUE] BACKFILL: Added {len(extra)} extra rows to guarantee {sample_pct}% value coverage")
+                print(f"    [VALUE] BACKFILL: Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
 
         print(f"    [VALUE] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} rows")
 
