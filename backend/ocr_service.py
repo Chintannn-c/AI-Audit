@@ -20,10 +20,23 @@ class OCRService:
             text = ""
             
             if mime_type == 'application/pdf':
-                # Convert PDF to list of images
-                # Note: poppler must be installed and in PATH
-                images = convert_from_bytes(file_bytes)
-                print(f"[OCR] PDF converted to {len(images)} images")
+                try:
+                    # Method 1: pdf2image (Requires Poppler)
+                    images = convert_from_bytes(file_bytes)
+                    print(f"[OCR] PDF converted via pdf2image ({len(images)} pages)")
+                except Exception as p2i_err:
+                    print(f"[OCR] pdf2image failed (likely missing Poppler): {p2i_err}")
+                    print(f"[OCR] Attempting fallback via PyMuPDF...")
+                    import fitz
+                    from PIL import Image
+                    doc = fitz.open(stream=file_bytes, filetype="pdf")
+                    images = []
+                    for page in doc:
+                        pix = page.get_pixmap()
+                        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        images.append(img)
+                    print(f"[OCR] PDF converted via PyMuPDF ({len(images)} pages)")
+                
                 for i, image in enumerate(images):
                     page_text = pytesseract.image_to_string(image)
                     text += f"\n--- Page {i+1} ---\n{page_text}"

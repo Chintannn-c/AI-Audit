@@ -441,6 +441,10 @@ async function runVouch(file) {
         const res = await fetch('/api/vouch', { method: 'POST', body: fd });
         const data = await res.json();
         
+        if (!res.ok || !data.data) {
+            throw new Error(data.error || data.detail || 'Extraction failed. Please ensure the document is clear.');
+        }
+
         const modelName = data.model_used || "AI Ensemble";
         const isOCR = modelName.toLowerCase().includes('tesseract') || modelName.toLowerCase().includes('fallback');
         
