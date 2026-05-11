@@ -47,17 +47,17 @@ class AuditReportGenerator:
         pct_fmt = workbook.add_format({'border': 1, 'num_format': '0.0%'})
         
         if report_type == 'sampling':
-            # ── Sheet 1: Audit Summary ──
-            self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
-
-            # ── Sheet 2: Original Ledger ──
+            # ── Sheet 1: Original Ledger ──
             self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
             
-            # ── Sheet 3: TOD Samples ──
+            # ── Sheet 2: TOD Samples ──
             self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-            # ── Sheet 4: TOC Samples ──
+            # ── Sheet 3: TOC Samples ──
             self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
+
+            # ── Sheet 4: Audit Summary ──
+            self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
         else:
             # ── Sheet 1: Vouching Reconciliation ──
             if vouching_results:
