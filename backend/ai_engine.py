@@ -12,19 +12,19 @@ class AuditAIEngine:
 
     TASK_PROFILES = {
         'FORENSIC': {
-            'description': 'Deep reasoning for forensic audit analysis',
-            'models': ['openai/gpt-5.5', 'anthropic/claude-opus-4.7', 'openai/o3-pro',
-                       'anthropic/claude-3.5-sonnet', 'openai/gpt-4o'],
+            'description': 'Deep reasoning for forensic audit analysis (100% FREE)',
+            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'nousresearch/hermes-3-llama-3.1-405b:free', 
+                       'nvidia/nemotron-3-super-120b-a12b:free', 'openrouter/owl-alpha'],
         },
         'FAST_SCAN': {
-            'description': 'Cost-effective volume processing for summaries',
-            'models': ['anthropic/claude-sonnet-4.6', 'deepseek/deepseek-v4-pro', 
-                       'qwen/qwen3-max', 'openai/gpt-4o-mini', 'google/gemini-flash-1.5'],
+            'description': 'Cost-effective volume processing for summaries (100% FREE)',
+            'models': ['google/gemma-4-31b-it:free', 'qwen/qwen3-coder:free', 
+                       'meta-llama/llama-3.2-3b-instruct:free', 'liquid/lfm-2.5-1.2b-instruct:free'],
         },
         'VOUCHING': {
-            'description': 'Multimodal ensemble for invoice extraction',
-            'models': ['google/gemini-2.5-pro', 'openai/gpt-5.5', 'openai/gpt-4o', 
-                       'anthropic/claude-3.5-sonnet'],
+            'description': 'Multimodal extraction (100% FREE)',
+            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free', 
+                       'google/lyria-3-pro-preview'],
         },
     }
 
@@ -73,13 +73,13 @@ class AuditAIEngine:
             client = genai.Client(api_key=self.gemini_key, http_options={'api_version': 'v1alpha'})
             if file_bytes and mime_type:
                 resp = await client.aio.models.generate_content(
-                    model="gemini-2.5-pro",
+                    model="gemini-2.0-flash",
                     contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt],
                     config={'response_mime_type': 'application/json'}
                 )
             else:
                 resp = await client.aio.models.generate_content(
-                    model="gemini-2.5-pro",
+                    model="gemini-2.0-flash",
                     contents=prompt,
                     config={'response_mime_type': 'application/json'}
                 )
@@ -139,7 +139,7 @@ class AuditAIEngine:
 
     async def ensemble_consensus(self, prompt: str, min_agree: int = 2) -> Optional[dict]:
         profile = self.TASK_PROFILES.get('FORENSIC', {})
-        models = profile.get('models', ["anthropic/claude-opus-4.7", "openai/gpt-5.5", "google/gemini-2.5-pro"])[:3]
+        models = profile.get('models', ["meta-llama/llama-3.3-70b-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free", "nvidia/nemotron-3-super-120b-a12b:free"])[:3]
 
         print(f"[ENSEMBLE] Launching {len(models)} models in parallel...")
         tasks = [self._try_openrouter(mid, prompt) for mid in models]
