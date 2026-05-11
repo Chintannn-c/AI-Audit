@@ -165,9 +165,9 @@ def safe_json(obj):
         return None
     return obj
 
-def get_ai_insights(category: str, stats: dict) -> dict:
+async def get_ai_insights(category: str, stats: dict) -> dict:
     """Delegated to Multi-Model Engine."""
-    return ai_engine.get_summary(category, stats)
+    return await ai_engine.get_summary(category, stats)
 
 # ──────────────────────────────────────────────
 # ENDPOINTS
@@ -260,7 +260,7 @@ async def analyze_ledger(
         toc_value = float(toc[amt_col].abs().sum()) if amt_col and len(toc) > 0 else 0
 
         # AI insights (non-blocking)
-        ai_insights = get_ai_insights(category, stats)
+        ai_insights = await get_ai_insights(category, stats)
 
         # Dashboard JSON (forensic metrics, Gini, trends, etc.)
         dashboard = analyzer.get_dashboard_json()
@@ -393,7 +393,7 @@ async def vouch_invoice(
     mime_type = mime_map.get(ext, 'application/octet-stream')
 
     # Try real AI extraction with multi-model failover via Engine
-    extracted_data = ai_engine.vouch_invoice(contents, mime_type)
+    extracted_data = await ai_engine.vouch_invoice(contents, mime_type)
     
     model_used = "Tesseract OCR (Fallback)"
     if isinstance(extracted_data, dict) and "model_used" in extracted_data:
@@ -466,7 +466,7 @@ async def deep_audit_transaction(
     """AI-powered multi-model forensic remarks for a single transaction."""
     try:
         txn_data = json.loads(transaction)
-        result = ai_engine.deep_audit_remark(txn_data, category)
+        result = await ai_engine.deep_audit_remark(txn_data, category)
         
         log_audit_action(session_id, "DEEP_AUDIT", {
             "category": category,
