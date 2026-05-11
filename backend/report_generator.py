@@ -114,7 +114,10 @@ class AuditReportGenerator:
         ws = wb.add_worksheet(safe)
 
         if df is None or len(df) == 0:
-            ws.write(0, 0, f'No data for {name}')
+            msg = f'No data for {name}.'
+            if 'TOC' in name:
+                msg += " (Note: In substantive-only audits or when all transactions are allocated to TOD, this sheet remains empty)."
+            ws.write(0, 0, msg)
             return
 
         # Date format for datetime columns

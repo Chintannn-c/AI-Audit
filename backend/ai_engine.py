@@ -14,19 +14,19 @@ class AuditAIEngine:
     TASK_PROFILES = {
         'FORENSIC': {
             'description': 'Deep reasoning for forensic audit analysis (100% FREE)',
-            'models': ['openai/gpt-oss-120b:free', 'nousresearch/hermes-3-llama-3.1-405b:free', 
-                       'meta-llama/llama-3.3-70b-instruct:free', 'nvidia/nemotron-3-super-120b-a12b:free', 
-                       'openrouter/owl-alpha'],
+            'models': ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free', 
+                       'google/gemma-4-31b-it:free', 'nvidia/nemotron-3-super-120b-a12b:free',
+                       'nousresearch/hermes-3-llama-3.1-405b:free'],
         },
         'FAST_SCAN': {
             'description': 'Cost-effective volume processing for summaries (100% FREE)',
-            'models': ['glm-4.5-air:free', 'google/gemma-4-31b-it:free', 'qwen/qwen3-coder:free', 
-                       'meta-llama/llama-3.2-3b-instruct:free', 'liquid/lfm-2.5-1.2b-instruct:free'],
+            'models': ['z-ai/glm-4.5-air:free', 'google/gemma-4-31b-it:free', 
+                       'liquid/lfm-2.5-1.2b-instruct:free', 'meta-llama/llama-3.2-3b-instruct:free'],
         },
         'VOUCHING': {
             'description': 'Multimodal extraction (100% FREE)',
-            'models': ['nvidia/nemotron-nano-12b-v2-vl:free', 'meta-llama/llama-3.3-70b-instruct:free', 
-                       'qwen/qwen3-coder:free', 'google/lyria-3-pro-preview'],
+            'models': ['nvidia/nemotron-nano-12b-v2-vl:free', 'baidu/qianfan-ocr-fast:free', 
+                       'google/gemma-4-31b-it:free', 'meta-llama/llama-3.2-3b-instruct:free'],
         },
     }
 
@@ -92,10 +92,18 @@ class AuditAIEngine:
                     "Content-Type": "application/json"
                 }
                 resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers)
+                
+                # Fallback: Try without json_object if 400 (some free models don't support it)
+                if resp.status_code == 400:
+                    del payload["response_format"]
+                    resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers)
+
                 if resp.status_code == 200:
                     data = resp.json()
                     content = data['choices'][0]['message']['content']
                     return self._clean_json(content)
+                else:
+                    print(f"[AI] OpenRouter {model_id} Error {resp.status_code}: {resp.text}")
             return None
         except Exception as e:
             print(f"[AI] OpenRouter {model_id} failed: {e}")
@@ -221,9 +229,18 @@ class AuditAIEngine:
         return res if res else {"summary": "Analysis failed.", "focus": "N/A"}
 
     async def vouch_invoice(self, contents: bytes, mime_type: str) -> dict:
-        prompt = "Extract Invoice No, Date, Vendor, GSTIN, Gross Amount. Return JSON with 'data' array of {field, value}."
+        prompt = (
+            "Extract the following fields from this invoice image: "
+            "Invoice No, Date, Vendor Name, GSTIN (if present), Gross Amount. "
+            "Return the data strictly in this JSON format: "
+            "{ \"data\": [ { \"field\": \"Invoice No\", \"value\": \"...\" }, ... ] }"
+        )
+        print(f"[AI] Starting Vouching for {mime_type}...")
         res = await self.route_task('VOUCHING', {'prompt': prompt, 'file_bytes': contents, 'mime_type': mime_type})
-        return res if res else {"data": []}
+        if not res or 'data' not in res:
+            print("[AI] Vouching failed or returned invalid format.")
+            return {"data": []}
+        return res
 
     async def deep_audit_remark(self, transaction: dict, category: str) -> dict:
         prompt = f"Forensic audit of {category} transaction: {json.dumps(transaction)}. Return JSON with 'risk_level', 'remark', 'recommended_action'."

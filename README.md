@@ -6,12 +6,12 @@ StatAudit AI is a high-performance, hardened AI infrastructure designed for prof
 
 - **Autonomous Vouching**: Automatically extracts data from uploaded invoices (PDF/Images) and matches them against ledger records.
 - **Ultra-Resilient AI Pipeline**: Features a multi-tiered orchestration system powered by **Gemini, Groq, and OpenRouter** to ensure zero downtime. The stack is optimized with the **Best Free Models (May 2026)**:
-  1. **Reasoning**: `openai/gpt-oss-120b:free` & `nousresearch/hermes-3-llama-3.1-405b:free` (Forensic Consensus)
-  2. **Coding & Data**: `qwen/qwen3-coder:free` (Structured extraction)
-  3. **OCR/Vision**: `nvidia/nemotron-nano-12b-v2-vl:free` (Vouching Intelligence)
-  4. **Performance**: `glm-4.5-air:free` & `google/gemma-4-31b-it:free` (Rapid summarization)
-  5. **Stability**: `meta-llama/llama-3.3-70b-instruct:free` (Consensus Anchor)
-  6. **Last Resort**: **Local Tesseract OCR** (Offline extraction fallback)
+  1. **Reasoning**: `openai/gpt-oss-120b:free` & `meta-llama/llama-3.3-70b-instruct:free` (Forensic Consensus)
+  2. **Coding & Data**: `qwen/qwen3-coder:free` & `google/gemma-4-31b-it:free` (Structured extraction)
+  3. **OCR/Vision**: `nvidia/nemotron-nano-12b-v2-vl:free` & `baidu/qianfan-ocr-fast:free` (Vouching Intelligence)
+  4. **Performance**: `z-ai/glm-4.5-air:free` & `liquid/lfm-2.5-1.2b-instruct:free` (Rapid summarization)
+  5. **Last Resort**: **Local Tesseract OCR** (Offline extraction fallback)
+- **Smart Audit Sampling**: Forensic-grade sampling logic that prevents empty "Test of Controls" (TOC) even in data-scarce environments via intelligent vendor backfill.
 - **Materiality Engine**: Synchronized frontend/backend materiality calculations with dynamic percentage overrides.
 - **Hardened Risk Assessment**: Quantitative and qualitative risk logic that automatically classifies audit depth (TOC/TOD) based on governance and misstatement history.
 - **Multimodal Support**: Native handling of PDFs and Images using PyMuPDF and Pillow.
