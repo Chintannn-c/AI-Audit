@@ -29,7 +29,7 @@ class AuditReportGenerator:
         self.materiality = materiality
         self.risk = risk
 
-    def generate(self, vouching_results=None) -> io.BytesIO:
+    def generate(self, vouching_results=None, report_type='sampling') -> io.BytesIO:
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {'in_memory': True})
 
@@ -42,21 +42,22 @@ class AuditReportGenerator:
         title_fmt = workbook.add_format({'bold': True, 'font_size': 14})
         bold_fmt = workbook.add_format({'bold': True})
         
-        # ── Sheet 1: Audit Summary ──
-        self._write_summary_sheet(workbook, title_fmt, header_fmt, cell_fmt)
+        if report_type == 'sampling':
+            # ── Sheet 1: Audit Summary ──
+            self._write_summary_sheet(workbook, title_fmt, header_fmt, cell_fmt)
 
-        # ── Sheet 2: Original Ledger ──
-        self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
-        
-        # ── Sheet 3: TOD Samples ──
-        self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
+            # ── Sheet 2: Original Ledger ──
+            self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
+            
+            # ── Sheet 3: TOD Samples ──
+            self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-        # ── Sheet 4: TOC Samples ──
-        self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
-
-        # ── Sheet 5: Vouching Reconciliation ──
-        if vouching_results:
-            self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
+            # ── Sheet 4: TOC Samples ──
+            self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
+        else:
+            # ── Sheet 1: Vouching Reconciliation ──
+            if vouching_results:
+                self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
 
         workbook.close()
         output.seek(0)

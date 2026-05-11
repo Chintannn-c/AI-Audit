@@ -372,7 +372,7 @@ async def download_report(
             context.get("materiality", {}),
             context.get("risk", {})
         )
-        output = report.generate(vouching_results=vouching_results)
+        output = report.generate(vouching_results=vouching_results, report_type='sampling')
 
         # Store generated Working Paper in GridFS
         wp_file_id = None
@@ -532,7 +532,7 @@ async def download_vouching_report(session_id: str):
             sampling_config={}
         )
         
-        output = report.generate(vouching_results=results)
+        output = report.generate(vouching_results=results, report_type='vouching')
         
         return StreamingResponse(
             output,
