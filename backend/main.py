@@ -20,11 +20,18 @@ import numpy as np
 import gridfs
 from datetime import datetime, timezone
 from pymongo import MongoClient
-from analyzer import AuditAnalyzer
-from report_generator import AuditReportGenerator
-from materiality import MaterialityCalculator
-from risk_assessment import RiskAssessmentEngine
-from ai_engine import ai_engine
+try:
+    from analyzer import AuditAnalyzer
+    from report_generator import AuditReportGenerator
+    from materiality import MaterialityCalculator
+    from risk_assessment import RiskAssessmentEngine
+    from ai_engine import ai_engine
+except ImportError:
+    from backend.analyzer import AuditAnalyzer
+    from backend.report_generator import AuditReportGenerator
+    from backend.materiality import MaterialityCalculator
+    from backend.risk_assessment import RiskAssessmentEngine
+    from backend.ai_engine import ai_engine
 
 app = FastAPI(title="StatAudit Pro - Enterprise AI Sampling")
 
