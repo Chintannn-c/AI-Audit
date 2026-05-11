@@ -58,6 +58,8 @@ body {
 
 .sidebar.collapsed {
     transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
 }
 
 @media (max-width: 768px) {

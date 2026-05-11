@@ -47,6 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.innerWidth <= 768) {
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) sidebar.classList.add('collapsed');
+        
+        // Also ensure the toggle button is in the right state
+        const toggleBtn = document.getElementById('sidebarToggle');
+        if (toggleBtn) {
+            toggleBtn.classList.remove('active');
+            toggleBtn.innerHTML = '<i data-lucide="menu"></i>';
+            lucide.createIcons();
+        }
     }
 
     // Bind Global Export PDF
@@ -132,20 +140,29 @@ function navigateTo(sectionId) {
 }
 
 function toggleSidebar() {
+    console.log("Toggling sidebar...");
     const sidebar = document.querySelector('.sidebar');
     const main = document.querySelector('.main-wrapper');
     const toggleBtn = document.getElementById('sidebarToggle');
     
     if (!sidebar || !main || !toggleBtn) return;
     
-    const isCollapsed = sidebar.classList.toggle('collapsed');
-    main.classList.toggle('expanded', isCollapsed);
-    toggleBtn.classList.toggle('active', !isCollapsed);
+    const isNowCollapsed = sidebar.classList.toggle('collapsed');
+    
+    // On desktop, we want to expand/collapse the main margin
+    // On mobile, the main wrapper should stay full width (expanded)
+    if (window.innerWidth > 768) {
+        main.classList.toggle('expanded', isNowCollapsed);
+    } else {
+        main.classList.add('expanded');
+    }
+    
+    toggleBtn.classList.toggle('active', !isNowCollapsed);
     
     // Update icon
-    toggleBtn.innerHTML = isCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="chevron-left"></i>';
+    toggleBtn.innerHTML = isNowCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="chevron-left"></i>';
     
-    // Refresh icons in case button changed
+    // Refresh icons
     if (window.lucide) lucide.createIcons();
 }
 
