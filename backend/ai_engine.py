@@ -14,18 +14,19 @@ class AuditAIEngine:
     TASK_PROFILES = {
         'FORENSIC': {
             'description': 'Deep reasoning for forensic audit analysis (100% FREE)',
-            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'nousresearch/hermes-3-llama-3.1-405b:free', 
-                       'nvidia/nemotron-3-super-120b-a12b:free', 'openrouter/owl-alpha'],
+            'models': ['openai/gpt-oss-120b:free', 'nousresearch/hermes-3-llama-3.1-405b:free', 
+                       'meta-llama/llama-3.3-70b-instruct:free', 'nvidia/nemotron-3-super-120b-a12b:free', 
+                       'openrouter/owl-alpha'],
         },
         'FAST_SCAN': {
             'description': 'Cost-effective volume processing for summaries (100% FREE)',
-            'models': ['google/gemma-4-31b-it:free', 'qwen/qwen3-coder:free', 
+            'models': ['glm-4.5-air:free', 'google/gemma-4-31b-it:free', 'qwen/qwen3-coder:free', 
                        'meta-llama/llama-3.2-3b-instruct:free', 'liquid/lfm-2.5-1.2b-instruct:free'],
         },
         'VOUCHING': {
             'description': 'Multimodal extraction (100% FREE)',
-            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free', 
-                       'google/lyria-3-pro-preview'],
+            'models': ['nvidia/nemotron-nano-12b-v2-vl:free', 'meta-llama/llama-3.3-70b-instruct:free', 
+                       'qwen/qwen3-coder:free', 'google/lyria-3-pro-preview'],
         },
     }
 

@@ -5,11 +5,13 @@ StatAudit AI is a high-performance, hardened AI infrastructure designed for prof
 ## 🚀 Key Features
 
 - **Autonomous Vouching**: Automatically extracts data from uploaded invoices (PDF/Images) and matches them against ledger records.
-- **Ultra-Resilient AI Pipeline**: Features a 20+ model orchestration system powered by **Gemini, Groq, and OpenRouter** to ensure zero downtime:
-  1. **Primary**: **Gemini 2.0 Flash** (High-speed Multimodal & Reasoning)
-  2. **Secondary**: **Groq (Llama 3 70B)** (Lightning-fast text failover)
-  3. **Tertiary**: **OpenRouter Ensemble** (Failover access to **GPT-4o, Claude 3.5 Sonnet, Llama 3.1 405B, DeepSeek**, and more)
-  4. **Last Resort**: **Local Tesseract OCR** (Offline extraction fallback)
+- **Ultra-Resilient AI Pipeline**: Features a multi-tiered orchestration system powered by **Gemini, Groq, and OpenRouter** to ensure zero downtime. The stack is optimized with the **Best Free Models (May 2026)**:
+  1. **Reasoning**: `openai/gpt-oss-120b:free` & `nousresearch/hermes-3-llama-3.1-405b:free` (Forensic Consensus)
+  2. **Coding & Data**: `qwen/qwen3-coder:free` (Structured extraction)
+  3. **OCR/Vision**: `nvidia/nemotron-nano-12b-v2-vl:free` (Vouching Intelligence)
+  4. **Performance**: `glm-4.5-air:free` & `google/gemma-4-31b-it:free` (Rapid summarization)
+  5. **Stability**: `meta-llama/llama-3.3-70b-instruct:free` (Consensus Anchor)
+  6. **Last Resort**: **Local Tesseract OCR** (Offline extraction fallback)
 - **Materiality Engine**: Synchronized frontend/backend materiality calculations with dynamic percentage overrides.
 - **Hardened Risk Assessment**: Quantitative and qualitative risk logic that automatically classifies audit depth (TOC/TOD) based on governance and misstatement history.
 - **Multimodal Support**: Native handling of PDFs and Images using PyMuPDF and Pillow.
