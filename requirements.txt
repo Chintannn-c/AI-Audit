@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+openpyxl
+google-genai
+groq
+huggingface_hub
+python-multipart
+jinja2
+pytesseract
+Pillow
+pymupdf
+python-dotenv
+pymongo
