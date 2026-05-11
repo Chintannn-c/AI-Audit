@@ -25,8 +25,8 @@ class AuditAIEngine:
         },
         'VOUCHING': {
             'description': 'Multimodal extraction (100% FREE)',
-            'models': ['nvidia/nemotron-nano-12b-v2-vl:free', 'baidu/qianfan-ocr-fast:free', 
-                       'google/gemma-4-31b-it:free', 'meta-llama/llama-3.2-3b-instruct:free'],
+            'models': ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.2-11b-vision-instruct:free', 
+                       'nvidia/nemotron-nano-12b-v2-vl:free', 'baidu/qianfan-ocr-fast:free'],
         },
     }
 
@@ -170,7 +170,7 @@ class AuditAIEngine:
             return self.cache[cache_key]
 
         for model_id in profile.get('models', []):
-            if "gemini" in model_id.lower() and self.gemini_key and "/" not in model_id:
+            if "gemini" in model_id.lower() and self.gemini_key:
                 res = await self._try_gemini(prompt, file_bytes, mime_type)
             elif "groq" in model_id.lower() and self.groq_key and not is_multimodal:
                 res = await self._try_groq(prompt)

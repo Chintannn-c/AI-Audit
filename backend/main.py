@@ -12,11 +12,11 @@ import numpy as np
 import gridfs
 from datetime import datetime, timezone
 from pymongo import MongoClient
-from .analyzer import AuditAnalyzer
-from .report_generator import AuditReportGenerator
-from .materiality import MaterialityCalculator
-from .risk_assessment import RiskAssessmentEngine
-from .ai_engine import ai_engine
+from analyzer import AuditAnalyzer
+from report_generator import AuditReportGenerator
+from materiality import MaterialityCalculator
+from risk_assessment import RiskAssessmentEngine
+from ai_engine import ai_engine
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
