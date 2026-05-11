@@ -741,7 +741,24 @@ class AuditAnalyzer:
                 if extra_rows:
                     extra = sorted_data.loc[extra_rows].copy()
                     toc = pd.concat([toc, extra])
-                    print(f"    [VALUE] BACKFILL: Added {len(extra)} unique vendors to TOC (Strict Global Uniqueness)")
+                    print(f"    [VALUE] BACKFILL STAGE 1: Added {len(extra)} unique vendors to TOC (Strict Global Uniqueness)")
+
+                # Stage 2: Relaxed backfill (Repeat vendors allowed to REACH TARGET)
+                if combined_value < target_value:
+                    all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
+                    final_leftover = sorted_data[~sorted_data.index.isin(all_selected)]
+                    
+                    if len(final_leftover) > 0:
+                        extra_rows_2 = []
+                        for idx, row in final_leftover.iterrows():
+                            extra_rows_2.append(idx)
+                            combined_value += abs(row[self.amount_col])
+                            if combined_value >= target_value:
+                                break
+                        if extra_rows_2:
+                            extra_2 = sorted_data.loc[extra_rows_2].copy()
+                            toc = pd.concat([toc, extra_2])
+                            print(f"    [VALUE] BACKFILL STAGE 2: Added {len(extra_2)} rows with repeated vendors to reach {sample_pct}% coverage.")
 
 
         print(f"    [VALUE] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} rows")
