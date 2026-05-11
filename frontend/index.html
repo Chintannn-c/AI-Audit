@@ -464,8 +464,13 @@
                     <!-- Vouching Results -->
                     <div id="vouchResults" class="hidden mt-24">
                         <div class="glass-card">
-                            <h3>📋 Extracted Invoice Data</h3>
-                            <div class="table-container mt-16">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                                <h3>📋 Extracted Invoice Data</h3>
+                                <button class="btn-secondary" style="padding: 6px 12px; font-size: 11px;" onclick="regenerateVouch()">
+                                    <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Re-Extract
+                                </button>
+                            </div>
+                            <div class="table-container">
                                 <table class="premium-table">
                                     <thead>
                                         <tr>
@@ -476,15 +481,6 @@
                                     <tbody id="vouchTableBody"></tbody>
                                 </table>
                             </div>
-                        </div>
-                        <div id="vouchFlags" class="glass-card mt-16" style="border-left:4px solid var(--accent-primary); display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4 id="vouchFlagsTitle">⏳ Agent 2 Validation</h4>
-                                <p id="vouchFlagsText" class="text-secondary mt-8">Waiting for results...</p>
-                            </div>
-                            <button id="vouchRegenBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 12px; display: none;" onclick="regenerateVouch()">
-                                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Regenerate
-                            </button>
                         </div>
                     </div>
                 </section>

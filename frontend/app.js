@@ -939,14 +939,23 @@ async function updateVouchHistory() {
                     res.extracted_data.forEach(item => fields[item.field] = item.value);
                 }
                 
+                // Flexible mapping for different AI models
+                const invNo = fields['Invoice Number'] || fields['Invoice No'] || fields['Invoice #'] || 'N/A';
+                const date = fields['Date'] || fields['Invoice Date'] || 'N/A';
+                const total = fields['Grand Total'] || fields['Total Amount'] || fields['Amount'] || '0.00';
+                const vendor = fields['Vendor Name'] || fields['Vendor'] || 'Extracted';
+
                 return `
-                    <tr class="hover:bg-white/5 transition-colors">
-                        <td class="py-4 px-4 font-medium">${fields['Invoice Number'] || 'N/A'}</td>
-                        <td class="py-4 px-4 text-slate-400">${fields['Date'] || 'N/A'}</td>
-                        <td class="py-4 px-4">${fields['Vendor Name'] || 'Extracted'}</td>
-                        <td class="py-4 px-4 font-bold text-indigo-400">${fields['Grand Total'] || '0.00'}</td>
-                        <td class="py-4 px-4">
-                            <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Verified</span>
+                    <tr>
+                        <td style="padding:16px 24px; font-weight:600;">${invNo}</td>
+                        <td style="padding:16px 24px; color:var(--text-secondary);">${date}</td>
+                        <td style="padding:16px 24px;">${vendor}</td>
+                        <td style="padding:16px 24px; font-weight:800; color:var(--accent-primary);">${total}</td>
+                        <td style="padding:16px 24px;">
+                            <span class="badge badge-low">Verified</span>
+                        </td>
+                        <td style="padding:16px 24px; text-align:right;">
+                            <button class="btn-secondary" style="padding:4px 8px; font-size:10px;">Details</button>
                         </td>
                     </tr>
                 `;
