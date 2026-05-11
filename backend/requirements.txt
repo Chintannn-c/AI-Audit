@@ -14,3 +14,4 @@ xlsxwriter
 numpy
 httpx
 watchfiles
+pdf2image
