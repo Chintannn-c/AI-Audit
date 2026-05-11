@@ -28,6 +28,7 @@ class AuditAIEngine:
         'VOUCHING': {
             'description': 'Extraction & Image Parsing (User Priority)',
             'models': [
+                'openai/gpt-oss-120b:free',
                 'qwen/qwen3-coder:free', 
                 'baidu/qianfan-ocr-fast:free',
                 'google/gemini-2.0-flash-exp:free',

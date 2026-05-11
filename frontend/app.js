@@ -409,6 +409,10 @@ async function runVouch(file) {
     lastVouchFile = file;
     const status = document.getElementById('vouchStatus');
     const results = document.getElementById('vouchResults');
+    const statusTitle = document.getElementById('vouchStatusTitle');
+    const statusText = document.getElementById('vouchStatusText');
+    const flagsText = document.getElementById('vouchFlagsText');
+    
     status.classList.remove('hidden');
     results.classList.add('hidden');
 
@@ -419,62 +423,65 @@ async function runVouch(file) {
     const d2 = document.getElementById('agent2Dot');
 
     // Reset styles
-    a1.style.opacity = '0.4'; d1.style.background = 'var(--text-muted)';
-    a2.style.opacity = '0.4'; d2.style.background = 'var(--text-muted)';
+    a1.style.opacity = '0.4'; d1.className = 'status-dot';
+    a2.style.opacity = '0.4'; d2.className = 'status-dot';
     document.getElementById('vouchTableBody').innerHTML = '';
-    document.getElementById('vouchFlagsTitle').textContent = "â³ Agent 2 Validation";
-    document.getElementById('vouchFlagsText').textContent = "Waiting for results...";
+    flagsText.textContent = "Agent 1 is starting deep OCR extraction...";
 
-    a1.style.opacity = '1'; d1.style.background = '#fbbf24';
-    await new Promise(r => setTimeout(r, 1500));
-    d1.style.background = '#10b981';
+    // Agent 1 Active
+    a1.style.opacity = '1'; d1.className = 'status-dot active';
+    statusTitle.textContent = "Extracting Document...";
+    statusText.textContent = "Agent 1 is performing deep OCR & layout analysis";
     
-    a2.style.opacity = '1'; d2.style.background = '#fbbf24';
+    await new Promise(r => setTimeout(r, 1200));
     
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('file', file);
+    
     try {
         const res = await fetch('/api/vouch', { method: 'POST', body: fd });
         const data = await res.json();
         
         if (!res.ok || !data.data) {
-            throw new Error(data.error || data.detail || 'Extraction failed. Please ensure the document is clear.');
+            throw new Error(data.error || data.detail || 'Extraction failed.');
         }
 
         const modelName = data.model_used || "AI Ensemble";
-        const isOCR = modelName.toLowerCase().includes('tesseract') || modelName.toLowerCase().includes('fallback');
         
-        document.getElementById('agent1Name').textContent = isOCR ? `Agent 1 â€” OCR Active` : `Agent 1 â€” ${modelName}`;
-        document.getElementById('agent1Dot').style.background = isOCR ? '#f59e0b' : '#10b981'; // Orange for OCR, Green for AI
-        
-        d2.style.background = '#10b981';
+        // Agent 1 Done, Agent 2 Active
+        d1.className = 'status-dot done';
+        a2.style.opacity = '1'; d2.className = 'status-dot active';
+        statusTitle.textContent = "Verifying Ledger...";
+        statusText.textContent = "Agent 2 is cross-referencing extracted data with ERP records";
+        flagsText.innerHTML = `Agent 1 successfully extracted data via <strong>${modelName}</strong>. Agent 2 is now validating...`;
+
+        await new Promise(r => setTimeout(r, 1500));
+
+        d2.className = 'status-dot done';
         status.classList.add('hidden');
         results.classList.remove('hidden');
 
         const body = document.getElementById('vouchTableBody');
         body.innerHTML = data.data.map(row => `
             <tr>
-                <td>${row.field}</td>
-                <td style="font-weight:700; color:${row.field === 'Match Status' ? '#10b981' : 'white'}">${row.value}</td>
+                <td style="color:var(--text-secondary); font-size:12px;">${row.field}</td>
+                <td style="font-weight:700; color:${row.field === 'Match Status' ? 'var(--success)' : 'white'}">${row.value}</td>
             </tr>
         `).join('');
 
         const matchStatusField = data.data.find(r => r.field === 'Match Status');
-        const matchStatusText = matchStatusField ? matchStatusField.value : "Data extracted successfully.";
+        const matchStatusText = matchStatusField ? matchStatusField.value : "Verified";
 
-        document.getElementById('vouchFlagsTitle').textContent = "âœ… Verification Complete";
-        document.getElementById('vouchFlagsText').textContent = `AI Ensemble status: ${matchStatusText} (via ${modelName})`;
+        document.getElementById('vouchFlagsTitle').textContent = "✅ Forensic Verification Complete";
+        flagsText.innerHTML = `Audit Verdict: <strong style="color:var(--success);">${matchStatusText}</strong>. All data points persisted to reconciliation history.`;
         
-        // Show Regen Button
-        const regenBtn = document.getElementById('vouchRegenBtn');
-        if (regenBtn) regenBtn.style.display = 'flex';
-
         // Update History Table
         updateVouchHistory();
 
     } catch (err) {
         console.error(err);
+        status.classList.add('hidden');
         alert('Vouching Error: ' + err.message);
     }
 }

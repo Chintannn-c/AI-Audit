@@ -364,73 +364,100 @@
 
                 <!-- VOUCHING -->
                 <section id="vouching-section" class="content-section hidden">
-                    <div class="section-header mb-16"><h2>AI Invoice Vouching</h2><p>Upload invoices to verify against your sampled transactions using the Multi-Agent Ensemble.</p></div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-                        <div class="glass-card">
-                            <h3 style="font-size:15px;"><i data-lucide="upload" style="display:inline;vertical-align:middle;margin-right:6px;"></i> Upload Invoice</h3>
-                            <p class="text-secondary mt-8" style="font-size:12px;">Upload an invoice image (JPG/PNG/PDF) and the AI Ensemble will extract and cross-verify the data.</p>
-                            <div class="upload-zone mt-8" id="vouchUploadZone" style="min-height:140px;">
-                                <i data-lucide="scan-search" style="width:36px; height:36px; color:var(--accent-primary);"></i>
-                                <h4 class="mt-8">Drop Invoice Here</h4>
-                                <p class="text-muted" style="font-size:12px;">JPG, PNG, or PDF</p>
+                    <div class="section-header mb-16">
+                        <h2>AI Invoice Vouching</h2>
+                        <p>Verify physical invoices against ledger data using the Multi-Agent Forensic Ensemble.</p>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:24px;">
+                        <!-- Upload & Pipeline -->
+                        <div class="glass-card" style="display:flex;flex-direction:column;gap:20px;">
+                            <div class="upload-zone" id="vouchUploadZone" style="min-height:180px; flex:1; display:flex; flex-direction:column; justify-content:center;">
+                                <i data-lucide="upload-cloud" style="width:48px; height:48px; color:var(--accent-primary); margin-bottom:12px;"></i>
+                                <h3>Drop Invoice or Click to Upload</h3>
+                                <p class="text-muted" style="font-size:12px; margin-top:8px;">Supports PDF, JPG, PNG (Max 10MB)</p>
                                 <input type="file" id="vouchFileInput" accept=".jpg,.jpeg,.png,.pdf" hidden>
                             </div>
-                            <!-- Consolidated Vouching Summary (Reconciliation) -->
-                            <div id="vouchHistorySection" class="hidden mt-8">
-                                <div class="glass-card p-8">
-                                    <div class="flex items-center justify-between mb-6">
-                                        <h3 class="text-xl font-bold flex items-center gap-3">
-                                            <span class="text-indigo-400">📊</span> Vouching Reconciliation Summary
-                                        </h3>
-                                        <span id="vouchCount" class="text-xs font-medium px-2 py-1 bg-indigo-500/20 text-indigo-300 rounded-full">0 Invoices</span>
+
+                            <div id="vouchStatus" class="hidden" style="padding:16px; border-radius:12px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2);">
+                                <div style="display:flex; align-items:center; gap:16px;">
+                                    <div class="processing-spinner" style="width:28px; height:28px; margin-bottom:0;"></div>
+                                    <div>
+                                        <h4 id="vouchStatusTitle" style="font-size:14px;">Analyzing Document...</h4>
+                                        <p id="vouchStatusText" class="text-muted" style="font-size:11px;">Agent 1 is performing deep OCR extraction</p>
                                     </div>
-                                    
-                                    <div class="overflow-x-auto">
-                                        <table class="w-full text-left">
-                                            <thead>
-                                                <tr class="text-xs uppercase text-slate-400 border-b border-white/10">
-                                                    <th class="pb-4 px-4">Invoice #</th>
-                                                    <th class="pb-4 px-4">Date</th>
-                                                    <th class="pb-4 px-4">Vendor</th>
-                                                    <th class="pb-4 px-4">Total Amount</th>
-                                                    <th class="pb-4 px-4">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="vouchHistoryBody" class="text-sm divide-y divide-white/5">
-                                                <!-- History rows will be injected here -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="vouchStatus" class="hidden mt-8" style="padding:12px;border-radius:10px;background:rgba(99,102,241,0.08);">
-                                <div style="display:flex;align-items:center;gap:12px;">
-                                    <div class="processing-spinner" style="width:24px;height:24px;"></div>
-                                    <span id="vouchStatusText" class="text-secondary" style="font-size:13px;">Processing...</span>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Pipeline Progress -->
                         <div class="glass-card">
-                            <h3 style="font-size:15px;">🤖 AI Ensemble Pipeline</h3>
-                            <div class="mt-8" style="display:flex;flex-direction:column;gap:10px;">
-                                <div id="agent1Status" class="glass-card" style="padding:12px;background:rgba(255,255,255,0.02);opacity:0.4;">
-                                    <div style="display:flex;align-items:center;gap:12px;">
-                                        <div style="width:10px;height:10px;border-radius:50%;background:var(--text-muted)" id="agent1Dot"></div>
-                                        <div>
-                                            <h4 style="font-size:14px;"><span id="agent1Name">Agent 1 — Gemini Vision</span></h4>
-                                            <p class="text-muted" style="font-size:12px;">Deep OCR extraction of invoice data</p>
-                                        </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                                <h3 style="font-size:15px;"><i data-lucide="cpu" style="display:inline; vertical-align:middle; margin-right:8px; color:var(--accent-secondary);"></i> AI Ensemble Pipeline</h3>
+                                <div class="badge badge-low" style="font-size:9px;">ACTIVE</div>
+                            </div>
+                            
+                            <div style="display:flex; flex-direction:column; gap:12px;">
+                                <div id="agent1Status" class="agent-card" style="opacity:0.4;">
+                                    <div class="agent-icon-box"><i data-lucide="eye"></i></div>
+                                    <div style="flex:1;">
+                                        <h4 style="font-size:13px;"><span id="agent1Name">Agent 1 — Vision System</span></h4>
+                                        <p class="text-muted" style="font-size:11px;">OCR & Layout Extraction</p>
                                     </div>
+                                    <div class="status-dot" id="agent1Dot"></div>
                                 </div>
-                                <div id="agent2Status" class="glass-card" style="padding:12px;background:rgba(255,255,255,0.02);opacity:0.4;">
-                                    <div style="display:flex;align-items:center;gap:12px;">
-                                        <div style="width:10px;height:10px;border-radius:50%;background:var(--text-muted)" id="agent2Dot"></div>
-                                        <div>
-                                            <h4 style="font-size:14px;"><span id="agent2Name">Agent 2 — Groq Logic</span></h4>
-                                            <p class="text-muted" style="font-size:12px;">Cross-reference against ERP ledger context</p>
-                                        </div>
+
+                                <div id="agent2Status" class="agent-card" style="opacity:0.4;">
+                                    <div class="agent-icon-box" style="background:rgba(168,85,247,0.1); color:var(--accent-secondary);"><i data-lucide="shield-check"></i></div>
+                                    <div style="flex:1;">
+                                        <h4 style="font-size:13px;"><span id="agent2Name">Agent 2 — Auditor Logic</span></h4>
+                                        <p class="text-muted" style="font-size:11px;">Reconciliation & Flagging</p>
                                     </div>
+                                    <div class="status-dot" id="agent2Dot"></div>
                                 </div>
+                            </div>
+
+                            <div class="mt-16" id="vouchFlagsArea" style="padding-top:16px; border-top:1px solid var(--glass-border);">
+                                <h4 id="vouchFlagsTitle" style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Live Analysis Logs</h4>
+                                <div id="vouchFlagsText" class="text-muted" style="font-size:11px; line-height:1.5;">Waiting for document upload...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Width Reconciliation Summary -->
+                    <div id="vouchHistorySection" class="hidden mt-24">
+                        <div class="glass-card" style="padding:0; overflow:hidden;">
+                            <div style="padding:20px 24px; border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01);">
+                                <div>
+                                    <h3 style="font-size:18px; display:flex; align-items:center; gap:10px;">
+                                        <i data-lucide="list-checks" style="color:var(--success);"></i> Vouching Reconciliation Summary
+                                    </h3>
+                                    <p class="text-muted" style="font-size:12px; margin-top:4px;">Cross-verified data points from processed session history</p>
+                                </div>
+                                <div style="display:flex; gap:10px; align-items:center;">
+                                    <span id="vouchCount" class="badge badge-low" style="text-transform:none;">0 Invoices</span>
+                                    <button class="btn-secondary" style="padding:6px 12px; font-size:11px;" onclick="runDownload()">
+                                        <i data-lucide="download" style="width:14px;"></i> Export Reconciliation
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="table-container" style="border-radius:0;">
+                                <table class="premium-table">
+                                    <thead>
+                                        <tr style="background:rgba(255,255,255,0.02);">
+                                            <th style="padding:16px 24px;">Invoice Number</th>
+                                            <th>Date</th>
+                                            <th>Vendor Name</th>
+                                            <th>Extracted Total</th>
+                                            <th>Match Status</th>
+                                            <th style="text-align:right; padding-right:24px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vouchHistoryBody">
+                                        <!-- Dynamic Content -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

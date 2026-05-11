@@ -727,7 +727,45 @@ select.glass-input option {
     .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
 }
 
-/* ─── Print Styles ─── */
+/* ─── Premium UI Components ─── */
+.agent-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: var(--transition);
+}
+.agent-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(4px);
+}
+.agent-icon-box {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent-primary);
+    display: flex; align-items: center; justify-content: center;
+}
+.status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.05);
+}
+.status-dot.active {
+    background: var(--warning);
+    animation: glowPulse 1.5s infinite;
+}
+.status-dot.done {
+    background: var(--success);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+/* Print Styles */
 @media print {
     * { color-adjust: exact !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body { background: white !important; color: #1a1a2e !important; }
