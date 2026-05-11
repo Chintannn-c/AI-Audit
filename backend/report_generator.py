@@ -40,11 +40,15 @@ class AuditReportGenerator:
         })
         cell_fmt = workbook.add_format({'border': 1, 'align': 'left'})
         title_fmt = workbook.add_format({'bold': True, 'font_size': 14})
-        bold_fmt = workbook.add_format({'bold': True})
+        sub_fmt = workbook.add_format({'bold': True, 'font_size': 12, 'bg_color': '#e2e8f0'})
+        lbl_fmt = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#f8fafc'})
+        val_fmt = workbook.add_format({'border': 1})
+        vnum_fmt = workbook.add_format({'border': 1, 'num_format': '#,##0.00'})
+        pct_fmt = workbook.add_format({'border': 1, 'num_format': '0.0%'})
         
         if report_type == 'sampling':
             # ── Sheet 1: Audit Summary ──
-            self._write_summary_sheet(workbook, title_fmt, header_fmt, cell_fmt)
+            self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
 
             # ── Sheet 2: Original Ledger ──
             self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
@@ -63,33 +67,6 @@ class AuditReportGenerator:
         output.seek(0)
         return output
 
-    def _write_summary_sheet(self, wb, title_fmt, header_fmt, cell_fmt):
-        ws = wb.add_worksheet('Audit Summary')
-        ws.write(0, 0, f"StatAudit Pro: {self.category} Audit Summary", title_fmt)
-        
-        # Population Info
-        ws.write(2, 0, "Population Overview", wb.add_format({'bold': True, 'underline': True}))
-        ws.write(3, 0, "Total Transactions:", cell_fmt)
-        ws.write(3, 1, self.stats.get('total_count', 0), cell_fmt)
-        ws.write(4, 0, "Total Value:", cell_fmt)
-        ws.write(4, 1, self.stats.get('total_sum', 0), cell_fmt)
-        
-        # Materiality Info
-        ws.write(6, 0, "Materiality Levels", wb.add_format({'bold': True, 'underline': True}))
-        ws.write(7, 0, "Performance Materiality:", cell_fmt)
-        ws.write(7, 1, self.materiality.get('performance_materiality', 0), cell_fmt)
-        ws.write(8, 0, "Trivial Threshold:", cell_fmt)
-        ws.write(8, 1, self.materiality.get('trivial_threshold', 0), cell_fmt)
-
-        # Sampling Summary
-        ws.write(10, 0, "Sampling Results", wb.add_format({'bold': True, 'underline': True}))
-        ws.write(11, 0, "TOD Sample Size:", cell_fmt)
-        ws.write(11, 1, len(self.tod), cell_fmt)
-        ws.write(12, 0, "TOC Sample Size:", cell_fmt)
-        ws.write(12, 1, len(self.toc), cell_fmt)
-        
-        ws.set_column(0, 0, 25)
-        ws.set_column(1, 1, 15)
 
     def _write_vouching_reconciliation_sheet(self, wb, results, title_fmt, header_fmt, cell_fmt):
         ws = wb.add_worksheet('Vouching Reconciliation')
