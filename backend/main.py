@@ -522,7 +522,8 @@ async def vouch_invoice(
             from PIL import Image
             import re
             
-            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+            if os.name == 'nt':
+                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
             
             # Handle PDFs vs Images
             if mime_type == 'application/pdf':
