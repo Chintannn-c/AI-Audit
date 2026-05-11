@@ -404,8 +404,8 @@ class AuditAnalyzer:
                 # Sort by date for windowing
                 vgrp = grp.sort_values('_Parsed_Date')
                 # Sliding window: find pos/neg pairs within 7 days
-                pos_idx = vgrp[raw_amt > 0].index
-                neg_idx = vgrp[raw_amt < 0].index
+                pos_idx = vgrp[vgrp[self.amount_col] > 0].index
+                neg_idx = vgrp[vgrp[self.amount_col] < 0].index
                 
                 if len(pos_idx) > 0 and len(neg_idx) > 0:
                     for p_idx in pos_idx:
