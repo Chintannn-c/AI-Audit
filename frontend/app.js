@@ -1,6 +1,3 @@
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// StatAudit Pro â€” High-Performance AI Engine
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function generateSessionId() {
     return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
@@ -891,6 +888,8 @@ function renderTrendChart(trends) {
             }
         }
     });
+}
+
 async function updateVouchHistory() {
     const section = document.getElementById('vouchHistorySection');
     const body = document.getElementById('vouchHistoryBody');
