@@ -125,7 +125,9 @@ class AuditAIEngine:
                     config={'response_mime_type': 'application/json'}
                 )
             if resp and resp.text:
+                print(f"[AI] Gemini Success! Length: {len(resp.text)}")
                 return self._clean_json(resp.text)
+            print("[AI] Gemini returned empty response.")
             return None
         except Exception as e:
             print(f"[AI] Gemini Direct failed: {e}")
@@ -233,28 +235,26 @@ class AuditAIEngine:
         res = await self.route_task('FAST_SCAN', {'prompt': prompt})
         return res if res else {"summary": "Analysis failed.", "focus": "N/A"}
 
-    async def vouch_invoice(self, contents: bytes, mime_type: str) -> dict:
+    async def vouch_invoice(self, extracted_text: str) -> dict:
         prompt = (
-            "Role: You are a highly accurate Document Processing Assistant specializing in OCR and financial data extraction. "
-            "Task: Analyze the uploaded invoice and extract data into a structured JSON format. "
+            "Role: You are a highly accurate Document Processing Assistant specializing in financial data extraction. "
+            "Task: Analyze the following OCR text from an invoice and extract data into a structured JSON format. "
             "Extraction Fields: "
-            "1. Invoice Number (Unique ID) "
-            "2. Date (Format DD-MM-YYYY) "
-            "3. Item Name (Description per line item) "
-            "4. Amount (Base price before tax per item) "
-            "5. GST (Tax amount per item) "
-            "6. Total Amount (Amount + GST per item) "
-            "7. Grand Total (Sum of all items) "
-            "Instructions: If there are multiple items, list each one. Do not include currency symbols. "
-            "Output Format: { \"data\": [ { \"field\": \"Invoice Number\", \"value\": \"...\" }, "
-            "{ \"field\": \"Date\", \"value\": \"...\" }, "
-            "{ \"field\": \"Item 1 Name\", \"value\": \"...\" }, { \"field\": \"Item 1 Amount\", \"value\": \"...\" }, ... ] }"
+            "1. Invoice Number "
+            "2. Date (DD-MM-YYYY) "
+            "3. Vendor Name "
+            "4. GST Number "
+            "5. Line Items (Array of {item, qty, price, gst, total}) "
+            "6. Grand Total "
+            "Instructions: Return the data strictly in this JSON format: "
+            "{ \"data\": [ { \"field\": \"...\", \"value\": \"...\" } ], \"raw_extraction\": { ... } } "
+            "Document Text: \n" + extracted_text
         )
-        print(f"[AI] Starting Detailed Vouching for {mime_type}...")
-        res = await self.route_task('VOUCHING', {'prompt': prompt, 'file_bytes': contents, 'mime_type': mime_type})
+        print(f"[AI] Starting Detailed Vouching from OCR text...")
+        res = await self.route_task('VOUCHING', {'prompt': prompt})
         if not res or not isinstance(res, dict) or 'data' not in res:
             print("[AI] Vouching failed or returned invalid format.")
-            return {"data": [], "model_used": "AI Failure Fallback"}
+            return {"data": [], "model_used": "AI Failure"}
         return res
 
     async def deep_audit_remark(self, transaction: dict, category: str) -> dict:
@@ -266,8 +266,13 @@ class AuditAIEngine:
             clean = text.strip()
             if "```json" in clean: clean = clean.split("```json")[1].split("```")[0].strip()
             elif "```" in clean: clean = clean.split("```")[1].split("```")[0].strip()
-            return json.loads(clean)
-        except:
+            
+            data = json.loads(clean)
+            if isinstance(data, list):
+                return {"data": data}
+            return data
+        except Exception as e:
+            print(f"[AI] JSON Parse Error: {e} | Raw: {text[:100]}...")
             return None
 
 ai_engine = AuditAIEngine()

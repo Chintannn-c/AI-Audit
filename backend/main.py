@@ -392,13 +392,27 @@ async def vouch_invoice(
     mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.pdf': 'application/pdf'}
     mime_type = mime_map.get(ext, 'application/octet-stream')
 
-    # Try real AI extraction with multi-model failover via Engine
-    extracted_data = await ai_engine.vouch_invoice(contents, mime_type)
+    # 1. Local OCR Extraction (MANDATORY per requirements)
+    from ocr_service import ocr_service
+    ocr_text = ocr_service.extract_text(contents, mime_type)
     
-    model_used = "Tesseract OCR (Fallback)"
-    if isinstance(extracted_data, dict) and "model_used" in extracted_data:
-        model_used = extracted_data["model_used"]
-        extracted_data = extracted_data["data"]
+    if not ocr_text:
+        return JSONResponse(status_code=400, content={"error": "OCR failed to extract text from document."})
+
+    # 2. AI Structured Parsing from OCR Text
+    ai_result = await ai_engine.vouch_invoice(ocr_text)
+    
+    extracted_data = ai_result.get("data", [])
+    model_used = ai_result.get("model_used", "Ensemble AI")
+    raw_extraction = ai_result.get("raw_extraction", {})
+
+    if not extracted_data:
+        extracted_data = [{"field": "Extraction Status", "value": "AI parsing failed - raw OCR only"}]
+        # Optionally add some raw text if AI fails
+        extracted_data.append({"field": "Raw Text Sample", "value": ocr_text[:100] + "..."})
+    else:
+        # We successfully got data, we can now skip the old fallback logic
+        return {"data": extracted_data, "model_used": model_used}
     
     if not extracted_data:
         try:
