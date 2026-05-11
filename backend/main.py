@@ -1,7 +1,7 @@
+from dotenv import load_dotenv
 import os
 import sys
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-sys.path.append(os.path.dirname(__file__))
+
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +24,7 @@ from ai_engine import ai_engine
 
 app = FastAPI(title="StatAudit Pro - Enterprise AI Sampling")
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,6 +34,8 @@ app.add_middleware(
 )
 
 # AI Engine is handled by ai_engine.py
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+sys.path.append(os.path.dirname(__file__))
 
 # MongoDB Setup
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
