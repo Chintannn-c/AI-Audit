@@ -52,7 +52,19 @@ body {
     border-right: 1px solid var(--glass-border);
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 2000;
+    transition: var(--transition);
+}
+
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        max-width: 300px;
+    }
 }
 
 .sidebar-header {
@@ -173,6 +185,39 @@ body {
     transition: var(--transition);
 }
 
+.main-wrapper.expanded {
+    margin-left: 0;
+}
+
+.sidebar-toggle {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1100;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.sidebar-toggle:hover {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.sidebar-toggle.active {
+    left: 295px;
+}
+
 /* Content */
 .content-area {
     max-width: 1200px;
@@ -187,11 +232,11 @@ body {
     align-items: center; justify-content: center; text-align: center; padding: 20px;
 }
 .hero-title {
-    font-size: 3.2rem; line-height: 1.1; margin-bottom: 16px;
+    font-size: clamp(2rem, 8vw, 3.2rem); line-height: 1.1; margin-bottom: 16px;
     background: linear-gradient(to right, #fff, var(--text-secondary));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.hero-subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 600px; margin-bottom: 28px; }
+.hero-subtitle { font-size: clamp(0.9rem, 2vw, 1.1rem); color: var(--text-secondary); max-width: 600px; margin-bottom: 28px; }
 
 /* Glass Cards */
 .glass-card {
@@ -633,16 +678,51 @@ select.glass-input option {
 .text-small { font-size: 13px; }
 .w-full { width: 100%; }
 
+.mobile-only { display: none !important; }
+@media (max-width: 768px) {
+    .mobile-only { display: flex !important; }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .results-grid { grid-template-columns: repeat(3, 1fr); }
     .config-panel { grid-template-columns: 1fr; }
+    #materiality-section > div { grid-template-columns: 1fr !important; }
 }
+
 @media (max-width: 768px) {
-    .sidebar { display: none; }
     .main-wrapper { margin-left: 0 !important; }
+    .content-area { padding: 16px; }
+    
     .results-grid { grid-template-columns: repeat(2, 1fr); }
-    .hero-title { font-size: 2.5rem; }
+    
+    #materiality-section > div,
+    #sampling-section .config-panel,
+    #vouching-section > div,
+    #landing-page > div > div,
+    #risk-section .glass-card > div,
+    #reports-section #reportMaterialityData,
+    #reports-section #reportSamplingData,
+    #reports-section .glass-card > div:last-child { 
+        grid-template-columns: 1fr !important; 
+    }
+
+    .sidebar-toggle.active {
+        left: auto;
+        right: 20px;
+    }
+
+    .hero-section { padding: 40px 20px; }
+    .stage-tracker { padding: 20px; flex-direction: column; gap: 20px; }
+    .stage-line { display: none; }
+    
+    .sidebar-header { display: flex; align-items: center; }
+}
+
+@media (max-width: 480px) {
+    .results-grid { grid-template-columns: 1fr; }
+    .result-card .result-value { font-size: 18px; }
+    .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
 }
 
 /* ─── Print Styles ─── */

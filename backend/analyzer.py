@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from typing import Dict, Any, Tuple
 from datetime import datetime
 
@@ -159,15 +160,22 @@ class AuditAnalyzer:
         self.df[col] = self.df[col].apply(parse_accounting_num)
 
     def _filter_non_transaction_rows(self):
-        """Remove rows that are sub-totals, headers, or balances."""
+        """Remove rows that are sub-totals, headers, or balances using vectorized regex."""
+        if self.df.empty:
+            return
+            
         keywords = ['total', 'balance', 'b/f', 'c/f', 'opening', 'closing',
                      'brought forward', 'carried forward', 'grand total',
                      'sub total', 'sub-total']
+        
+        # Pre-compile case-insensitive regex pattern
+        pattern = '|'.join([re.escape(kw) for kw in keywords])
+        
         mask = pd.Series(False, index=self.df.index)
         for col in self.df.select_dtypes(include=['object']).columns:
-            col_lower = self.df[col].astype(str).str.lower().str.strip()
-            col_mask = col_lower.apply(lambda x: any(kw in x for kw in keywords))
-            mask |= col_mask
+            # Vectorized str.contains is null-safe with na=False
+            mask |= self.df[col].astype(str).str.contains(pattern, case=False, regex=True, na=False)
+            
         self.df = self.df[~mask].reset_index(drop=True)
 
     def _optimize_memory(self):

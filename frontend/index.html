@@ -12,6 +12,9 @@
 </head>
 <body>
     <div id="topProgressBar" class="top-progress-bar"></div>
+    <button id="sidebarToggle" class="sidebar-toggle" onclick="toggleSidebar()">
+        <i data-lucide="menu"></i>
+    </button>
     <div class="app-container">
         <!-- SIDEBAR -->
         <aside class="sidebar">
@@ -20,6 +23,9 @@
                     <i data-lucide="shield-check" style="color:var(--accent-primary);"></i>
                     <span>StatAudit AI</span>
                 </div>
+                <button class="btn-secondary mobile-only" onclick="toggleSidebar()" style="padding:4px; border:none; background:transparent; margin-left:auto; display:none;">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-label">Main Menu</div>

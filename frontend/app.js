@@ -43,6 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionId = getOrCreateSessionId();
     console.log('Session:', sessionId);
 
+    // Mobile init: Collapse sidebar by default
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.add('collapsed');
+    }
+
     // Bind Global Export PDF
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     if (exportPdfBtn) {
@@ -66,19 +72,46 @@ function navigateTo(sectionId) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // Toggle Sidebar & Progress Bar
+    // Toggle Sidebar & Toggle Button
     const sidebar = document.querySelector('.sidebar');
     const main = document.querySelector('.main-wrapper');
+    const toggleBtn = document.getElementById('sidebarToggle');
     const topBar = document.getElementById('topProgressBar');
 
     if (sectionId === 'landing-page') {
-        if (sidebar) sidebar.style.display = 'none';
-        if (main) main.style.marginLeft = '0';
-        if (topBar) topBar.style.display = 'none';
+        if (sidebar) sidebar.classList.add('hidden');
+        if (main) main.classList.add('expanded');
+        if (toggleBtn) toggleBtn.classList.add('hidden');
+        if (topBar) topBar.classList.add('hidden');
     } else {
-        if (sidebar) sidebar.style.display = 'flex';
-        if (main) main.style.marginLeft = '280px';
-        if (topBar) topBar.style.display = 'block';
+        if (sidebar) {
+            sidebar.classList.remove('hidden');
+            // If not collapsed, keep main margin
+            if (!sidebar.classList.contains('collapsed')) {
+                main.classList.remove('expanded');
+                if (toggleBtn) {
+                    toggleBtn.classList.add('active');
+                    toggleBtn.innerHTML = '<i data-lucide="chevron-left"></i>';
+                }
+            } else {
+                main.classList.add('expanded');
+                if (toggleBtn) {
+                    toggleBtn.classList.remove('active');
+                    toggleBtn.innerHTML = '<i data-lucide="menu"></i>';
+                }
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+        if (toggleBtn) toggleBtn.classList.remove('hidden');
+        if (topBar) topBar.classList.remove('hidden');
+    }
+
+    // Auto-close sidebar on mobile after navigation
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && !sidebar.classList.contains('collapsed')) {
+            toggleSidebar();
+        }
     }
 
     // Update Sidebar Active State
@@ -96,6 +129,24 @@ function navigateTo(sectionId) {
         const pct = ((currentIdx + 1) / stages.length) * 100;
         topBar.style.width = pct + '%';
     }
+}
+
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const main = document.querySelector('.main-wrapper');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    
+    if (!sidebar || !main || !toggleBtn) return;
+    
+    const isCollapsed = sidebar.classList.toggle('collapsed');
+    main.classList.toggle('expanded', isCollapsed);
+    toggleBtn.classList.toggle('active', !isCollapsed);
+    
+    // Update icon
+    toggleBtn.innerHTML = isCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="chevron-left"></i>';
+    
+    // Refresh icons in case button changed
+    if (window.lucide) lucide.createIcons();
 }
 
 // ── Section 1: Materiality Logic ──
