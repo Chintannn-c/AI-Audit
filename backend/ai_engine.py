@@ -28,8 +28,15 @@ class AuditAIEngine:
         },
         'VOUCHING': {
             'description': 'Text-to-JSON structured extraction (100% FREE)',
-            'models': ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.3-70b-instruct:free', 
-                       'qwen/qwen3-coder:free', 'nvidia/nemotron-nano-12b-v2-vl:free'],
+            'models': [
+                'google/gemini-2.0-flash-exp:free', 
+                'meta-llama/llama-3.3-70b-instruct:free', 
+                'deepseek/deepseek-r1:free',
+                'qwen/qwen3-coder:free', 
+                'nvidia/nemotron-nano-12b-v2-vl:free',
+                'mistralai/mistral-7b-instruct:free',
+                'google/gemma-2-9b-it:free'
+            ],
         },
     }
 
@@ -186,6 +193,9 @@ class AuditAIEngine:
                     continue
             except Exception as e:
                 print(f"[ROUTER] Model {model_id} crashed: {e}")
+                if "429" in str(e):
+                    print(f"[ROUTER] Rate limit hit. Waiting 2s before next model...")
+                    await asyncio.sleep(2)
                 continue
 
             if res:
