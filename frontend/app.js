@@ -577,9 +577,23 @@ async function runAnalysis() {
         document.getElementById('resTodCount').textContent = data.tod_count.toLocaleString();
         document.getElementById('resTocCount').textContent = data.toc_count.toLocaleString();
         document.getElementById('resTotalSelected').textContent = data.total_selected.toLocaleString();
-        const coverage = data.stats.count > 0
-            ? ((data.total_selected / data.stats.count) * 100).toFixed(1)
-            : '0.0';
+        
+        let coverage = '0.0';
+        const basis = data.sampling_basis || 'count';
+        const coverageLabel = document.querySelector('#resCoverage + .result-label');
+        
+        if (basis === 'value') {
+            const totalVal = data.stats.total_value || 1;
+            const selectedVal = (data.tod_value || 0) + (data.toc_value || 0);
+            coverage = ((selectedVal / totalVal) * 100).toFixed(1);
+            if (coverageLabel) coverageLabel.textContent = 'Value Coverage';
+        } else {
+            coverage = data.stats.count > 0
+                ? ((data.total_selected / data.stats.count) * 100).toFixed(1)
+                : '0.0';
+            if (coverageLabel) coverageLabel.textContent = 'Transaction Coverage';
+        }
+        
         document.getElementById('resCoverage').textContent = `${coverage}%`;
 
         // Sync to Reports section
