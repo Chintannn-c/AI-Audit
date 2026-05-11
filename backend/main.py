@@ -1,7 +1,11 @@
-from dotenv import load_dotenv
 import os
 import sys
+from dotenv import load_dotenv
 
+# Ensure local directory is in path BEFORE imports
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(BASE_DIR)
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
@@ -34,8 +38,7 @@ app.add_middleware(
 )
 
 # AI Engine is handled by ai_engine.py
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-sys.path.append(os.path.dirname(__file__))
+# (Path and Dotenv already handled at top)
 
 # MongoDB Setup
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
