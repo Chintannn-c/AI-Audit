@@ -180,11 +180,16 @@ class AuditAIEngine:
                 continue
 
             if res:
-                res['model_used'] = model_id
-                # Save to cache
-                self.cache[cache_key] = res
-                self._save_cache()
-                return res
+                # If the model returned a list, wrap it in a dict for consistency
+                if isinstance(res, list):
+                    res = {"data": res}
+                
+                if isinstance(res, dict):
+                    res['model_used'] = model_id
+                    # Save to cache
+                    self.cache[cache_key] = res
+                    self._save_cache()
+                    return res
         return None
 
     async def ensemble_consensus(self, prompt: str, min_agree: int = 2) -> Optional[dict]:
@@ -237,9 +242,9 @@ class AuditAIEngine:
         )
         print(f"[AI] Starting Vouching for {mime_type}...")
         res = await self.route_task('VOUCHING', {'prompt': prompt, 'file_bytes': contents, 'mime_type': mime_type})
-        if not res or 'data' not in res:
+        if not res or not isinstance(res, dict) or 'data' not in res:
             print("[AI] Vouching failed or returned invalid format.")
-            return {"data": []}
+            return {"data": [], "model_used": "AI Failure Fallback"}
         return res
 
     async def deep_audit_remark(self, transaction: dict, category: str) -> dict:
