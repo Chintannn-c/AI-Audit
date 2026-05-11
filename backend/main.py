@@ -1,6 +1,7 @@
-from dotenv import load_dotenv
 import os
+import sys
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+sys.path.append(os.path.dirname(__file__))
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
