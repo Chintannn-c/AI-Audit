@@ -235,12 +235,22 @@ class AuditAIEngine:
 
     async def vouch_invoice(self, contents: bytes, mime_type: str) -> dict:
         prompt = (
-            "Extract the following fields from this invoice image: "
-            "Invoice No, Date, Vendor Name, GSTIN (if present), Gross Amount. "
-            "Return the data strictly in this JSON format: "
-            "{ \"data\": [ { \"field\": \"Invoice No\", \"value\": \"...\" }, ... ] }"
+            "Role: You are a highly accurate Document Processing Assistant specializing in OCR and financial data extraction. "
+            "Task: Analyze the uploaded invoice and extract data into a structured JSON format. "
+            "Extraction Fields: "
+            "1. Invoice Number (Unique ID) "
+            "2. Date (Format DD-MM-YYYY) "
+            "3. Item Name (Description per line item) "
+            "4. Amount (Base price before tax per item) "
+            "5. GST (Tax amount per item) "
+            "6. Total Amount (Amount + GST per item) "
+            "7. Grand Total (Sum of all items) "
+            "Instructions: If there are multiple items, list each one. Do not include currency symbols. "
+            "Output Format: { \"data\": [ { \"field\": \"Invoice Number\", \"value\": \"...\" }, "
+            "{ \"field\": \"Date\", \"value\": \"...\" }, "
+            "{ \"field\": \"Item 1 Name\", \"value\": \"...\" }, { \"field\": \"Item 1 Amount\", \"value\": \"...\" }, ... ] }"
         )
-        print(f"[AI] Starting Vouching for {mime_type}...")
+        print(f"[AI] Starting Detailed Vouching for {mime_type}...")
         res = await self.route_task('VOUCHING', {'prompt': prompt, 'file_bytes': contents, 'mime_type': mime_type})
         if not res or not isinstance(res, dict) or 'data' not in res:
             print("[AI] Vouching failed or returned invalid format.")
