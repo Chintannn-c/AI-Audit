@@ -36,12 +36,31 @@ class AuditAIEngine:
                 )
                 # Comprehensive list of top-tier models from OpenRouter
                 self.or_models = [
+                    # S-Tier (General Intelligence)
                     "anthropic/claude-3.5-sonnet",
-                    "meta-llama/llama-3.1-405b-instruct",
                     "openai/gpt-4o",
+                    "openai/gpt-4-turbo",
+                    "anthropic/claude-3-opus",
                     "google/gemini-pro-1.5",
+                    
+                    # High Performance / Large Scale
+                    "meta-llama/llama-3.1-405b-instruct",
                     "mistralai/mistral-large",
-                    "cohere/command-r-plus"
+                    "databricks/dbrx-instruct",
+                    "qwen/qwen-72b-chat",
+                    "cohere/command-r-plus",
+                    
+                    # Fast & Efficient
+                    "openai/gpt-4o-mini",
+                    "anthropic/claude-3-haiku",
+                    "google/gemini-flash-1.5",
+                    "deepseek/deepseek-chat",
+                    "mistralai/mixtral-8x22b-instruct",
+                    
+                    # Specialized / Search
+                    "perplexity/sonar-medium-chat",
+                    "perplexity/sonar-small-online",
+                    "gryphe/mythomax-l2-13b"
                 ]
             except Exception as e:
                 print(f"[AI] OpenRouter init failed: {e}")
