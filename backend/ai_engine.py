@@ -16,26 +16,23 @@ class AuditAIEngine:
 
     TASK_PROFILES = {
         'FORENSIC': {
-            'description': 'Deep reasoning for forensic audit analysis (100% FREE)',
+            'description': 'Heavy Reasoning (User Priority)',
             'models': ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free', 
-                       'google/gemma-4-31b-it:free', 'nvidia/nemotron-3-super-120b-a12b:free',
-                       'nousresearch/hermes-3-llama-3.1-405b:free'],
+                       'google/gemini-2.0-flash-exp:free'],
         },
         'FAST_SCAN': {
-            'description': 'Cost-effective volume processing for summaries (100% FREE)',
-            'models': ['z-ai/glm-4.5-air:free', 'google/gemma-4-31b-it:free', 
-                       'liquid/lfm-2.5-1.2b-instruct:free', 'meta-llama/llama-3.2-3b-instruct:free'],
+            'description': 'Fast Cheap Backup (User Priority)',
+            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free', 
+                       'google/gemma-2-9b-it:free'],
         },
         'VOUCHING': {
-            'description': 'Text-to-JSON structured extraction (100% FREE)',
+            'description': 'Extraction & Image Parsing (User Priority)',
             'models': [
-                'google/gemini-2.0-flash-exp:free', 
-                'meta-llama/llama-3.3-70b-instruct:free', 
-                'deepseek/deepseek-r1:free',
                 'qwen/qwen3-coder:free', 
-                'nvidia/nemotron-nano-12b-v2-vl:free',
-                'mistralai/mistral-7b-instruct:free',
-                'google/gemma-2-9b-it:free'
+                'baidu/qianfan-ocr-fast:free',
+                'google/gemini-2.0-flash-exp:free',
+                'meta-llama/llama-3.3-70b-instruct:free',
+                'deepseek/deepseek-r1:free'
             ],
         },
     }
