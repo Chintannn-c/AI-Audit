@@ -15,6 +15,7 @@ from .analyzer import AuditAnalyzer
 from .report_generator import AuditReportGenerator
 from .materiality import MaterialityCalculator
 from .risk_assessment import RiskAssessmentEngine
+from .ai_engine import ai_engine
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
@@ -29,24 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-gemini_client = None
-try:
-    from google import genai
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-except Exception:
-    print("Warning: Gemini client init failed. AI insights will use fallback.")
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-groq_client = None
-if GROQ_API_KEY:
-    try:
-        from groq import Groq
-        groq_client = Groq(api_key=GROQ_API_KEY)
-    except Exception:
-        print("Warning: Groq client init failed.")
-
-HF_TOKEN = os.getenv("HF_TOKEN")
+# AI Engine is handled by ai_engine.py
 
 # MongoDB Setup
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
@@ -181,30 +165,8 @@ def safe_json(obj):
     return obj
 
 def get_ai_insights(category: str, stats: dict) -> dict:
-    """Get AI insights with graceful fallback."""
-    fallback = {
-        "summary": f"{category} audit analysis complete. Review high-risk transactions in the working papers.",
-        "focus": f"{category} — High-Value & Risk-Based Sampling"
-    }
-    if not gemini_client:
-        return fallback
-    try:
-        prompt = (f"You are an expert statutory auditor. Audit area: {category}. "
-                  f"Ledger stats: {json.dumps(stats)}. "
-                  f"Provide a concise executive audit summary in JSON with 'summary' and 'focus' keys.")
-        response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config={'response_mime_type': 'application/json'}
-        )
-        if response and response.text:
-            clean = response.text.strip()
-            if clean.startswith("```"):
-                clean = clean.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-            return json.loads(clean)
-    except Exception as e:
-        print(f"AI Insights fallback: {e}")
-    return fallback
+    """Delegated to Multi-Model Engine."""
+    return ai_engine.get_summary(category, stats)
 
 # ──────────────────────────────────────────────
 # ENDPOINTS
@@ -412,7 +374,7 @@ async def vouch_invoice(
     session_id: str = Form(...),
     file: UploadFile = File(...)
 ):
-    """Real AI Vouching via Gemini Vision multimodal."""
+    """Real AI Vouching via Multi-Model Engine."""
     contents = await file.read()
     
     # Store in GridFS
@@ -425,99 +387,12 @@ async def vouch_invoice(
     mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.pdf': 'application/pdf'}
     mime_type = mime_map.get(ext, 'application/octet-stream')
 
-    # Try real AI extraction with multi-model failover
-    extracted_data = None
-    models_to_try = [
-        "gemini-3.1-pro-preview", 
-        "gemini-3-pro-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.1-pro-preview-customtools",
-        "gemini-2.0-flash"
-    ]
+    # Try real AI extraction with multi-model failover via Engine
+    extracted_data = ai_engine.vouch_invoice(contents, mime_type)
     
-    if gemini_client:
-        prompt = (
-            "You are an expert auditor performing invoice vouching. "
-            "Extract the following fields from this invoice image/document:\n"
-            "- Invoice Number\n- Invoice Date\n- Vendor Name\n- GSTIN\n"
-            "- Gross Amount\n- Tax Amount\n- Net Amount\n"
-            "Return ONLY a JSON array of objects with 'field' and 'value' keys. "
-            "Add a final entry with field='Match Status' and value='EXTRACTED - Pending Ledger Match'."
-        )
-        for model_name in models_to_try:
-            try:
-                print(f"[VOUCH] Trying AI Model: {model_name}...")
-                response = gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=[
-                        prompt,
-                        genai.types.Part.from_bytes(data=contents, mime_type=mime_type)
-                    ],
-                    config={'response_mime_type': 'application/json'}
-                )
-                if response and response.text:
-                    clean = response.text.strip()
-                    if clean.startswith("```"):
-                        clean = clean.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-                    extracted_data = json.loads(clean)
-                    print(f"[VOUCH] Success with {model_name}")
-                    break # Stop trying if successful
-            except Exception as e:
-                print(f"[VOUCH] {model_name} failed: {e}")
-    # Fallback to Hugging Face Inference API if Gemini fails
-    if not extracted_data and HF_TOKEN:
-        print("[VOUCH] Trying AI Model: Qwen2-VL-7B-Instruct (Hugging Face)...")
-        try:
-            import requests, base64
-            
-            if mime_type == 'application/pdf':
-                import fitz
-                doc = fitz.open(stream=contents, filetype="pdf")
-                page = doc.load_page(0)
-                pix = page.get_pixmap()
-                img_bytes = pix.tobytes("jpeg")
-                hf_mime = "image/jpeg"
-                base64_image = base64.b64encode(img_bytes).decode('utf-8')
-            else:
-                hf_mime = mime_type
-                base64_image = base64.b64encode(contents).decode('utf-8')
-                
-            hf_url = "https://api-inference.huggingface.co/models/Qwen/Qwen2-VL-7B-Instruct/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {HF_TOKEN}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "Qwen/Qwen2-VL-7B-Instruct",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:{hf_mime};base64,{base64_image}"}}
-                        ]
-                    }
-                ],
-                "max_tokens": 500
-            }
-            hf_response = requests.post(hf_url, headers=headers, json=payload, timeout=20)
-            if hf_response.status_code == 200:
-                raw_content = hf_response.json()["choices"][0]["message"]["content"]
-                if raw_content:
-                    clean = raw_content.strip()
-                    if clean.startswith("```"):
-                        clean = clean.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
-                    extracted_data = json.loads(clean)
-                    print("[VOUCH] Success with Hugging Face Vision")
-            else:
-                print(f"[VOUCH] Hugging Face failed with status {hf_response.status_code}: {hf_response.text}")
-        except Exception as e:
-            print(f"[VOUCH] Hugging Face Vision failed: {e}")
-
-    # Fallback to Tesseract OCR if ALL AI models fail or are exhausted
     if not extracted_data:
         try:
-            print("[VOUCH] Falling back to Tesseract OCR...")
+            print("[VOUCH] AI extraction failed. Falling back to Tesseract OCR...")
             import pytesseract
             from PIL import Image
             import re
@@ -551,7 +426,6 @@ async def vouch_invoice(
                 {"field": "Match Status", "value": "EXTRACTED (Tesseract OCR Fallback)"}
             ]
         except Exception as ocr_e:
-            print(f"[VOUCH] Tesseract OCR failed: {ocr_e}")
             print(f"[VOUCH] Tesseract OCR failed: {ocr_e}")
 
     # Final fallback if both AI and OCR failed
