@@ -30,11 +30,19 @@ class AuditAIEngine:
         self.or_client = None
         if self.openrouter_key:
             try:
-                # OpenRouter uses OpenAI compatible client
                 self.or_client = OpenAI(
                     base_url="https://openrouter.ai/api/v1",
                     api_key=self.openrouter_key,
                 )
+                # Comprehensive list of top-tier models from OpenRouter
+                self.or_models = [
+                    "anthropic/claude-3.5-sonnet",
+                    "meta-llama/llama-3.1-405b-instruct",
+                    "openai/gpt-4o",
+                    "google/gemini-pro-1.5",
+                    "mistralai/mistral-large",
+                    "cohere/command-r-plus"
+                ]
             except Exception as e:
                 print(f"[AI] OpenRouter init failed: {e}")
 
@@ -74,18 +82,20 @@ class AuditAIEngine:
             except Exception as e:
                 print(f"[AI] Groq failed: {e}")
 
-        # 3. Try OpenRouter (GPT-4o / Claude 3)
+        # 3. Try OpenRouter (Full Model Suite Failover)
         if self.or_client:
-            try:
-                print("[AI] Falling back to OpenRouter...")
-                resp = self.or_client.chat.completions.create(
-                    model="openai/gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": "json_object"}
-                )
-                return json.loads(resp.choices[0].message.content)
-            except Exception as e:
-                print(f"[AI] OpenRouter failed: {e}")
+            for model_id in self.or_models:
+                try:
+                    print(f"[AI] Falling back to OpenRouter ({model_id})...")
+                    resp = self.or_client.chat.completions.create(
+                        model=model_id,
+                        messages=[{"role": "user", "content": prompt}],
+                        response_format={"type": "json_object"}
+                    )
+                    content = resp.choices[0].message.content
+                    return json.loads(content)
+                except Exception as e:
+                    print(f"[AI] OpenRouter model {model_id} failed: {e}")
 
         return {
             "summary": f"{category} audit analysis complete. Please review the high-risk transactions manually.",
@@ -122,35 +132,36 @@ class AuditAIEngine:
             except Exception as e:
                 print(f"[AI] Gemini Vouching failed: {e}")
 
-        # 2. Try OpenRouter (GPT-4o Vision)
+        # 2. Try OpenRouter (GPT-4o Vision and Claude 3.5 Sonnet)
         if self.or_client:
-            try:
-                print("[AI] Falling back to OpenRouter (GPT-4o) for Vouching...")
-                base64_img = base64.b64encode(contents).decode('utf-8')
-                resp = self.or_client.chat.completions.create(
-                    model="openai/gpt-4o",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:{mime_type};base64,{base64_img}"}
-                                }
-                            ]
-                        }
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                data = json.loads(resp.choices[0].message.content)
-                # Ensure it's the array format expected by the frontend
-                if isinstance(data, dict) and 'data' in data: return data['data']
-                if isinstance(data, list): return data
-                # If it's a flat dict of fields, convert to array
-                return [{"field": k, "value": v} for k, v in data.items()]
-            except Exception as e:
-                print(f"[AI] OpenRouter Vouching failed: {e}")
+            vision_models = ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5"]
+            for model_id in vision_models:
+                try:
+                    print(f"[AI] Falling back to OpenRouter ({model_id}) for Vouching...")
+                    base64_img = base64.b64encode(contents).decode('utf-8')
+                    resp = self.or_client.chat.completions.create(
+                        model=model_id,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": f"data:{mime_type};base64,{base64_img}"}
+                                    }
+                                ]
+                            }
+                        ],
+                        response_format={"type": "json_object"}
+                    )
+                    data = json.loads(resp.choices[0].message.content)
+                    # Handle different model output formats
+                    if isinstance(data, dict) and 'data' in data: return data['data']
+                    if isinstance(data, list): return data
+                    if isinstance(data, dict): return [{"field": k, "value": v} for k, v in data.items()]
+                except Exception as e:
+                    print(f"[AI] OpenRouter model {model_id} failed: {e}")
 
         return None
 
