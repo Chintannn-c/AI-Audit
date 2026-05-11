@@ -115,14 +115,12 @@ class AuditAIEngine:
             if file_bytes and mime_type:
                 resp = await client.aio.models.generate_content(
                     model="gemini-2.0-flash",
-                    contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt],
-                    config={'response_mime_type': 'application/json'}
+                    contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
                 )
             else:
                 resp = await client.aio.models.generate_content(
                     model="gemini-2.0-flash",
-                    contents=prompt,
-                    config={'response_mime_type': 'application/json'}
+                    contents=prompt
                 )
             if resp and resp.text:
                 print(f"[AI] Gemini Success! Length: {len(resp.text)}")
@@ -172,13 +170,19 @@ class AuditAIEngine:
             return self.cache[cache_key]
 
         for model_id in profile.get('models', []):
-            if "gemini" in model_id.lower() and self.gemini_key:
-                res = await self._try_gemini(prompt, file_bytes, mime_type)
-            elif "groq" in model_id.lower() and self.groq_key and not is_multimodal:
-                res = await self._try_groq(prompt)
-            elif self.openrouter_key:
-                res = await self._try_openrouter(model_id, prompt, file_bytes, mime_type, is_multimodal)
-            else:
+            print(f"[ROUTER] Trying model: {model_id}...")
+            try:
+                if "gemini" in model_id.lower() and self.gemini_key:
+                    res = await self._try_gemini(prompt, file_bytes, mime_type)
+                elif "groq" in model_id.lower() and self.groq_key and not is_multimodal:
+                    res = await self._try_groq(prompt)
+                elif self.openrouter_key:
+                    res = await self._try_openrouter(model_id, prompt, file_bytes, mime_type, is_multimodal)
+                else:
+                    print(f"[ROUTER] Skipping {model_id} (Missing API key or incompatible)")
+                    continue
+            except Exception as e:
+                print(f"[ROUTER] Model {model_id} crashed: {e}")
                 continue
 
             if res:
