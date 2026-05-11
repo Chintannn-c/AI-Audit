@@ -50,7 +50,10 @@ class AuditReportGenerator:
         # ── Sheet 2: TOD Samples ──
         self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-        # ── Sheet 3: Vouching Reconciliation ──
+        # ── Sheet 3: TOC Samples ──
+        self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
+
+        # ── Sheet 4: Vouching Reconciliation ──
         if vouching_results:
             self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
 
