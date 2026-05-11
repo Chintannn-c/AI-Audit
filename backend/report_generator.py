@@ -87,13 +87,20 @@ class AuditReportGenerator:
         row = 9
         for res in results:
             data = {item['field']: item['value'] for item in res.get('extracted_data', [])}
-            ws.write(row, 0, data.get("Invoice Number", "N/A"), cell_fmt)
-            ws.write(row, 1, data.get("Date", "N/A"), cell_fmt)
+            
+            # Flexible Mapping for Excel Export
+            inv_no = data.get("Invoice Number") or data.get("Invoice No") or data.get("Invoice #") or "N/A"
+            date = data.get("Date") or data.get("Invoice Date") or "N/A"
+            amt = data.get("Grand Total") or data.get("Total Amount") or data.get("Amount") or "0.00"
+            gst = data.get("Total GST") or data.get("GST") or data.get("GST Amount") or "0.00"
+            
+            ws.write(row, 0, inv_no, cell_fmt)
+            ws.write(row, 1, date, cell_fmt)
             ws.write(row, 2, "See Ledger", cell_fmt) # Posting Date from ERP
             ws.write(row, 3, "Yes", cell_fmt) # Logic to check company name
-            ws.write(row, 4, data.get("Amount", "0.00"), cell_fmt)
-            ws.write(row, 5, data.get("GST", "0.00"), cell_fmt)
-            ws.write(row, 6, data.get("Grand Total", "0.00"), cell_fmt)
+            ws.write(row, 4, amt, cell_fmt)
+            ws.write(row, 5, gst, cell_fmt)
+            ws.write(row, 6, amt, cell_fmt) # Total Amount
             ws.write(row, 7, data.get("Due Date", "N/A"), cell_fmt)
             # ... fill other columns as N/A or from ERP if matched
             row += 1
