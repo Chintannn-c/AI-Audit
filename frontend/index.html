@@ -422,9 +422,14 @@
                                 </table>
                             </div>
                         </div>
-                        <div id="vouchFlags" class="glass-card mt-16" style="border-left:4px solid var(--accent-primary);">
-                            <h4 id="vouchFlagsTitle">⏳ Agent 2 Validation</h4>
-                            <p id="vouchFlagsText" class="text-secondary mt-8">Waiting for results...</p>
+                        <div id="vouchFlags" class="glass-card mt-16" style="border-left:4px solid var(--accent-primary); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 id="vouchFlagsTitle">⏳ Agent 2 Validation</h4>
+                                <p id="vouchFlagsText" class="text-secondary mt-8">Waiting for results...</p>
+                            </div>
+                            <button id="vouchRegenBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 12px; display: none;" onclick="regenerateVouch()">
+                                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Regenerate
+                            </button>
                         </div>
                     </div>
                 </section>

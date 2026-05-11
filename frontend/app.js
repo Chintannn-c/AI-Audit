@@ -22,6 +22,7 @@ function clearSession() {
 
 let sessionId = '';
 let uploadedFile = null;
+let lastVouchFile = null;
 let isLargeAudit = true; // Default to true so TOC generates by default
 let selectedExactPct = 0.05; // Default for 'Medium' risk
 let selectedCategory = 'Sales';
@@ -408,6 +409,7 @@ function initVouchingLogic() {
 }
 
 async function runVouch(file) {
+    lastVouchFile = file;
     const status = document.getElementById('vouchStatus');
     const results = document.getElementById('vouchResults');
     status.classList.remove('hidden');
@@ -439,15 +441,11 @@ async function runVouch(file) {
         const res = await fetch('/api/vouch', { method: 'POST', body: fd });
         const data = await res.json();
         
-        // Update Dynamic Model UI
         const modelName = data.model_used || "AI Ensemble";
-        document.getElementById('agent1Name').textContent = `Agent 1 — ${modelName}`;
-        if (modelName.includes('Tesseract') || modelName.includes('Fallback')) {
-            document.getElementById('agent1Dot').style.background = '#ef4444'; // Red for fallback
-            document.getElementById('agent1Status').style.borderColor = '#ef444430';
-        } else {
-            d1.style.background = '#10b981'; // Green for success
-        }
+        const isOCR = modelName.toLowerCase().includes('tesseract') || modelName.toLowerCase().includes('fallback');
+        
+        document.getElementById('agent1Name').textContent = isOCR ? `Agent 1 — OCR Active` : `Agent 1 — ${modelName}`;
+        document.getElementById('agent1Dot').style.background = isOCR ? '#f59e0b' : '#10b981'; // Orange for OCR, Green for AI
         
         d2.style.background = '#10b981';
         status.classList.add('hidden');
@@ -466,10 +464,20 @@ async function runVouch(file) {
 
         document.getElementById('vouchFlagsTitle').textContent = "✅ Verification Complete";
         document.getElementById('vouchFlagsText').textContent = `AI Ensemble status: ${matchStatusText} (via ${modelName})`;
+        
+        // Show Regen Button
+        const regenBtn = document.getElementById('vouchRegenBtn');
+        if (regenBtn) regenBtn.style.display = 'flex';
 
     } catch (err) {
         console.error(err);
         alert('Vouching Error: ' + err.message);
+    }
+}
+
+function regenerateVouch() {
+    if (lastVouchFile) {
+        runVouch(lastVouchFile);
     }
 }
 
