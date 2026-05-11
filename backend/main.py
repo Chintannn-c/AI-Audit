@@ -261,6 +261,9 @@ async def analyze_ledger(
         # AI insights (non-blocking)
         ai_insights = get_ai_insights(category, stats)
 
+        # Dashboard JSON (forensic metrics, Gini, trends, etc.)
+        dashboard = analyzer.get_dashboard_json()
+
         # Top 10 preview
         scored = analyzer.score_risks()
         top_10 = scored.head(10).replace({np.nan: None}).to_dict(orient="records")
@@ -269,6 +272,7 @@ async def analyze_ledger(
             "stats": stats,
             "ai_insights": ai_insights,
             "risk_analysis": risk_analysis,
+            "dashboard": dashboard,
             "tod_count": len(tod),
             "toc_count": len(toc),
             "tod_value": tod_value,
@@ -390,6 +394,11 @@ async def vouch_invoice(
     # Try real AI extraction with multi-model failover via Engine
     extracted_data = ai_engine.vouch_invoice(contents, mime_type)
     
+    model_used = "Tesseract OCR (Fallback)"
+    if isinstance(extracted_data, dict) and "model_used" in extracted_data:
+        model_used = extracted_data["model_used"]
+        extracted_data = extracted_data["data"]
+    
     if not extracted_data:
         try:
             print("[VOUCH] AI extraction failed. Falling back to Tesseract OCR...")
@@ -441,11 +450,33 @@ async def vouch_invoice(
 
     log_audit_action(session_id, "VOUCH_INVOICE", {
         "file": file.filename,
-        "ai_used": extracted_data is not None,
+        "model_used": model_used,
         "gridfs_voucher_id": str(file_id) if file_id else None
     })
 
-    return {"status": "success", "data": extracted_data}
+    return {"status": "success", "data": extracted_data, "model_used": model_used}
+
+@app.post("/api/vouch/deep-audit")
+async def deep_audit_transaction(
+    session_id: str = Form(...),
+    transaction: str = Form(...),
+    category: str = Form("Sales")
+):
+    """AI-powered multi-model forensic remarks for a single transaction."""
+    try:
+        txn_data = json.loads(transaction)
+        result = ai_engine.deep_audit_remark(txn_data, category)
+        
+        log_audit_action(session_id, "DEEP_AUDIT", {
+            "category": category,
+            "risk_level": result.get("risk_level", "Unknown"),
+            "consensus": result.get("consensus", False)
+        })
+        
+        return {"status": "success", "data": result}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")

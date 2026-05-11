@@ -439,6 +439,16 @@ async function runVouch(file) {
         const res = await fetch('/api/vouch', { method: 'POST', body: fd });
         const data = await res.json();
         
+        // Update Dynamic Model UI
+        const modelName = data.model_used || "AI Ensemble";
+        document.getElementById('agent1Name').textContent = `Agent 1 — ${modelName}`;
+        if (modelName.includes('Tesseract') || modelName.includes('Fallback')) {
+            document.getElementById('agent1Dot').style.background = '#ef4444'; // Red for fallback
+            document.getElementById('agent1Status').style.borderColor = '#ef444430';
+        } else {
+            d1.style.background = '#10b981'; // Green for success
+        }
+        
         d2.style.background = '#10b981';
         status.classList.add('hidden');
         results.classList.remove('hidden');
@@ -455,7 +465,7 @@ async function runVouch(file) {
         const matchStatusText = matchStatusField ? matchStatusField.value : "Data extracted successfully.";
 
         document.getElementById('vouchFlagsTitle').textContent = "✅ Verification Complete";
-        document.getElementById('vouchFlagsText').textContent = `AI Ensemble status: ${matchStatusText}`;
+        document.getElementById('vouchFlagsText').textContent = `AI Ensemble status: ${matchStatusText} (via ${modelName})`;
 
     } catch (err) {
         console.error(err);
@@ -567,6 +577,11 @@ async function runAnalysis() {
         // Update Chart
         updateChart(data.stats);
 
+        // Render Forensic Dashboard
+        if (data.dashboard) {
+            renderDashboard(data.dashboard);
+        }
+
     } catch (err) {
         console.error(err);
         alert('Analysis Error: ' + err.message);
@@ -676,5 +691,186 @@ function selectBasis(btn) {
     parent.querySelectorAll('.toggle-option').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedBasis = btn.dataset.basis;
+}
+
+// ── Forensic Dashboard Renderer ──
+let trendChart = null;
+
+function renderDashboard(db) {
+    let container = document.getElementById('forensicDashboard');
+    if (!container) {
+        // Create dashboard container after sampling results
+        const parent = document.getElementById('samplingResults');
+        if (!parent) return;
+        container = document.createElement('div');
+        container.id = 'forensicDashboard';
+        container.className = 'mt-24';
+        parent.parentElement.insertBefore(container, parent.nextSibling);
+    }
+
+    const rc = db.risk_concentration || {};
+    const gini = db.vendor_gini || 0;
+    const rd = db.risk_distribution || {};
+    const flags = db.forensic_flags || {};
+    const topVendors = db.top_vendors || [];
+    const trends = db.monthly_trends || [];
+
+    const concentrationPct = ((rc.top_5pct_share || 0) * 100).toFixed(1);
+    const giniLabel = gini > 0.6 ? 'High Concentration' : (gini > 0.4 ? 'Moderate' : 'Diversified');
+    const giniColor = gini > 0.6 ? '#ef4444' : (gini > 0.4 ? '#f59e0b' : '#10b981');
+
+    // Forensic flag pills
+    const flagPills = Object.entries(flags)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, count]) => {
+            const color = name.includes('Split') || name.includes('Round') ? '#ef4444'
+                : name.includes('High') || name.includes('Above') ? '#f59e0b' : '#6366f1';
+            return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${color}18;color:${color};border:1px solid ${color}30;">${name} <span style="opacity:0.7;">(${count})</span></span>`;
+        }).join('');
+
+    // Top vendors list
+    const vendorRows = topVendors.map((v, i) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < topVendors.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.06);' : ''}">
+            <span style="font-size:12px;color:var(--text-primary);">${v.name}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--accent-primary);">₹${Number(v.value).toLocaleString()}</span>
+        </div>`
+    ).join('');
+
+    // Spike months
+    const spikeMonths = trends.filter(t => t.is_spike);
+    const spikeWarning = spikeMonths.length > 0
+        ? `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:11px;color:#ef4444;">
+            ⚠️ Anomalous spikes detected in: ${spikeMonths.map(s => `<strong>${s.month}</strong> (z=${s.z_score})`).join(', ')}
+           </div>`
+        : '';
+
+    container.innerHTML = `
+        <div class="glass-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="font-size:16px;">🔬 Forensic Intelligence Dashboard</h3>
+                <div class="badge badge-low" style="font-size:10px;">AI POWERED</div>
+            </div>
+
+            <!-- KPI Row -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                <div class="result-card">
+                    <div class="result-value" style="color:${giniColor};">${gini.toFixed(2)}</div>
+                    <div class="result-label">Vendor Gini <span style="font-size:9px;opacity:0.6;">(${giniLabel})</span></div>
+                </div>
+                <div class="result-card">
+                    <div class="result-value" style="color:#f59e0b;">${concentrationPct}%</div>
+                    <div class="result-label">Top 5% Value Share</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-value" style="color:#ef4444;">${rd.high || 0}</div>
+                    <div class="result-label">High Risk Txns</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-value" style="color:#10b981;">${rd.low || 0}</div>
+                    <div class="result-label">Low Risk Txns</div>
+                </div>
+            </div>
+
+            <!-- Forensic Flags -->
+            <div style="margin-bottom:20px;">
+                <h4 style="font-size:13px;margin-bottom:10px;color:var(--text-secondary);">Forensic Risk Flags</h4>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    ${flagPills || '<span class="text-muted" style="font-size:12px;">No anomalies detected</span>'}
+                </div>
+            </div>
+
+            <!-- Two Column: Vendors + Trend -->
+            <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:16px;">
+                <div style="padding:14px;background:rgba(255,255,255,0.02);border-radius:12px;border:1px solid var(--glass-border);">
+                    <h4 style="font-size:13px;margin-bottom:10px;">Top Vendors by Value</h4>
+                    ${vendorRows || '<span class="text-muted" style="font-size:12px;">No vendor data</span>'}
+                </div>
+                <div style="padding:14px;background:rgba(255,255,255,0.02);border-radius:12px;border:1px solid var(--glass-border);">
+                    <h4 style="font-size:13px;margin-bottom:10px;">Monthly Transaction Trends</h4>
+                    <div style="height:160px;position:relative;">
+                        <canvas id="trendChartCanvas"></canvas>
+                    </div>
+                    ${spikeWarning}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Draw trend chart
+    if (trends.length > 0) {
+        renderTrendChart(trends);
+    }
+}
+
+function renderTrendChart(trends) {
+    const ctx = document.getElementById('trendChartCanvas')?.getContext('2d');
+    if (!ctx) return;
+    if (trendChart) trendChart.destroy();
+
+    const labels = trends.map(t => t.month);
+    const values = trends.map(t => t.value);
+    const counts = trends.map(t => t.count);
+    const bgColors = trends.map(t =>
+        t.is_spike ? 'rgba(239,68,68,0.6)' : 'rgba(99,102,241,0.4)'
+    );
+    const borderColors = trends.map(t =>
+        t.is_spike ? '#ef4444' : '#6366f1'
+    );
+
+    trendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Txn Value (₹)',
+                    data: values,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Txn Count',
+                    data: counts,
+                    type: 'line',
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#10b981',
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: true, labels: { color: '#94a3b8', font: { size: 10 } } }
+            },
+            scales: {
+                y: {
+                    type: 'linear', position: 'left',
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8', font: { size: 9 } }
+                },
+                y1: {
+                    type: 'linear', position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: '#10b981', font: { size: 9 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 45 }
+                }
+            }
+        }
+    });
 }
 

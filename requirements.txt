@@ -16,3 +16,6 @@ xlsxwriter
 numpy
 openai
 requests
+xlrd
+lxml
+html5lib

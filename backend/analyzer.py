@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
 import re
-from typing import Dict, Any, Tuple
+import math
+from typing import Dict, Any, Tuple, List
 from datetime import datetime
+from collections import Counter
 
 class AuditAnalyzer:
     """
@@ -35,6 +37,9 @@ class AuditAnalyzer:
 
         # Filter non-transaction rows (totals, balances, headers)
         self._filter_non_transaction_rows()
+
+        # Forensic: Normalize vendor names for entity collapsing
+        self._normalize_vendors()
 
         # Memory optimization: downcast types
         self._optimize_memory()
@@ -129,6 +134,57 @@ class AuditAnalyzer:
                     return col
         # Fallback: use narration column (Tally exports often use 'Particulars')
         return self.narration_col
+
+    # ──────────────────────────────────────────────
+    # FORENSIC VENDOR NORMALIZATION
+    # ──────────────────────────────────────────────
+
+    _LEGAL_SUFFIXES = re.compile(
+        r'\b(pvt\.?\s*ltd\.?|private\s+limited|limited|ltd\.?|llp|'
+        r'inc\.?|incorporated|corp\.?|corporation|co\.?|company|'
+        r'enterprises?|traders?|associates?|solutions?|'
+        r'industries?|international|india|group)\b',
+        re.IGNORECASE
+    )
+
+    def _normalize_vendors(self):
+        """Create a _Norm_Vendor column with normalized, collapsed entity names."""
+        vcol = self.vendor_col
+        if not vcol or vcol not in self.df.columns:
+            self.df['_Norm_Vendor'] = ''
+            return
+
+        def _norm(name):
+            s = str(name).strip().lower()
+            if not s or s in ('nan', 'none', ''):
+                return ''
+            # Strip legal suffixes
+            s = self._LEGAL_SUFFIXES.sub('', s)
+            # Remove punctuation and extra whitespace
+            s = re.sub(r'[^a-z0-9\s]', '', s)
+            s = re.sub(r'\s+', ' ', s).strip()
+            return s
+
+        # Vectorized apply
+        self.df['_Norm_Vendor'] = self.df[vcol].apply(_norm)
+
+        # Fuzzy collapse: group entities that share first 6 chars and len diff <= 3
+        unique_norms = self.df['_Norm_Vendor'].unique()
+        canon_map = {}
+        sorted_norms = sorted([n for n in unique_norms if n], key=len)
+        for norm in sorted_norms:
+            matched = False
+            for canon in canon_map.values():
+                if (norm[:6] == canon[:6] and abs(len(norm) - len(canon)) <= 3
+                        and len(norm) >= 4):
+                    canon_map[norm] = canon
+                    matched = True
+                    break
+            if not matched:
+                canon_map[norm] = norm
+
+        self.df['_Norm_Vendor'] = self.df['_Norm_Vendor'].map(
+            lambda x: canon_map.get(x, x))
 
     # ──────────────────────────────────────────────
     # DATA CLEANING
@@ -314,6 +370,57 @@ class AuditAnalyzer:
             for i in trivial[trivial].index:
                 flags[i].append('Below Trivial')
 
+        # 11. FORENSIC: Split Transaction Detection
+        # Multiple small payments to the same vendor on the same day
+        if '_Norm_Vendor' in data.columns and self.date_col:
+            try:
+                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
+                data['_tmp_date'] = dates.dt.date
+                group_cols = ['_Norm_Vendor', '_tmp_date']
+                vendor_day = data[data['_Norm_Vendor'] != ''].groupby(group_cols)
+                split_indices = set()
+                for (vendor, day), grp in vendor_day:
+                    if len(grp) >= 3 and amt.loc[grp.index].mean() < avg:
+                        split_indices.update(grp.index.tolist())
+                split_mask = data.index.isin(split_indices)
+                data.loc[split_mask, '_Risk_Score'] += 18
+                for i in data[split_mask].index:
+                    flags[i].append('Split Transaction')
+                data.drop(columns=['_tmp_date'], inplace=True, errors='ignore')
+            except Exception:
+                pass
+
+        # 12. FORENSIC: Round-Tripping Pattern
+        # Debit + Credit to same vendor within 7 days with similar amounts
+        if '_Norm_Vendor' in data.columns and self.date_col:
+            try:
+                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
+                raw_amt = data[self.amount_col]
+                for vendor, grp in data[data['_Norm_Vendor'] != ''].groupby('_Norm_Vendor'):
+                    if len(grp) < 2:
+                        continue
+                    pos = grp[raw_amt.loc[grp.index] > 0]
+                    neg = grp[raw_amt.loc[grp.index] < 0]
+                    for pi in pos.index:
+                        for ni in neg.index:
+                            try:
+                                d1 = dates.loc[pi]
+                                d2 = dates.loc[ni]
+                                if pd.notna(d1) and pd.notna(d2) and abs((d1 - d2).days) <= 7:
+                                    a1 = abs(raw_amt.loc[pi])
+                                    a2 = abs(raw_amt.loc[ni])
+                                    if a1 > 0 and abs(a1 - a2) / a1 < 0.05:
+                                        data.loc[pi, '_Risk_Score'] += 15
+                                        data.loc[ni, '_Risk_Score'] += 15
+                                        if 'Round-Trip' not in flags[pi]:
+                                            flags[pi].append('Round-Trip')
+                                        if 'Round-Trip' not in flags[ni]:
+                                            flags[ni].append('Round-Trip')
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
         # Compile flags and categories
         data['_Risk_Flags'] = ['; '.join(f) if f else 'None' for f in flags]
         data['_Risk_Score'] = data['_Risk_Score'].clip(lower=0)
@@ -360,6 +467,7 @@ class AuditAnalyzer:
                               strict_unique: bool = False) -> pd.DataFrame:
         """
         Select n rows prioritizing unique vendors/parties.
+        Uses _Norm_Vendor (forensic-normalized) for entity deduplication.
 
         Args:
             strict_unique: If True, NEVER include duplicate vendors —
@@ -370,7 +478,9 @@ class AuditAnalyzer:
             return data.head(0).copy()
 
         target = min(n, len(data))
-        vcol = self.vendor_col
+        # Use normalized vendor column for dedup; fall back to raw vendor_col
+        use_norm = '_Norm_Vendor' in data.columns
+        vcol = '_Norm_Vendor' if use_norm else self.vendor_col
         
         if not vcol or vcol not in data.columns:
             if strategy == 'highest':
@@ -431,25 +541,25 @@ class AuditAnalyzer:
 
         print(f"    [COUNT] TOD selected: {len(tod)} rows")
 
-        # ── ZERO PARTY OVERLAP: Collect all vendor names already in TOD ──
+        # ── ZERO PARTY OVERLAP: Use _Norm_Vendor for forensic entity matching ──
         tod_vendors = set()
-        vcol = self.vendor_col
-        if vcol and vcol in tod.columns:
-            for v in tod[vcol].dropna().astype(str):
+        norm_col = '_Norm_Vendor' if '_Norm_Vendor' in tod.columns else self.vendor_col
+        if norm_col and norm_col in tod.columns:
+            for v in tod[norm_col].dropna().astype(str):
                 v_clean = v.strip().lower()
                 if v_clean and v_clean != 'nan':
                     tod_vendors.add(v_clean)
-        print(f"    [COUNT] TOD vendors to exclude from TOC: {len(tod_vendors)}")
+        print(f"    [COUNT] TOD normalized vendors to exclude from TOC: {len(tod_vendors)}")
 
-        # TOC: Random from rows NOT in TOD AND whose vendor is NOT in TOD
+        # TOC: Random from rows NOT in TOD AND whose normalized vendor is NOT in TOD
         remaining = scored[~scored.index.isin(tod_indices)]
-        if vcol and vcol in remaining.columns and tod_vendors:
-            remaining = remaining[~remaining[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+        if norm_col and norm_col in remaining.columns and tod_vendors:
+            remaining = remaining[~remaining[norm_col].astype(str).str.strip().str.lower().isin(tod_vendors)]
         print(f"    [COUNT] Remaining pool for TOC (after party exclusion): {len(remaining)} rows")
 
         if len(remaining) > 0 and toc_size > 0:
             toc = self._unique_vendor_select(remaining, toc_size, strategy='random',
-                                              strict_unique=False)
+                                              strict_unique=True)
         else:
             toc = pd.DataFrame(columns=scored.columns)
 
@@ -459,13 +569,21 @@ class AuditAnalyzer:
         combined = len(tod) + len(toc)
         if combined < total_samples:
             shortfall = total_samples - combined
-            # ── COVERAGE GUARANTEE: If combined < target, backfill from unused rows (Strict Unique Party) ──
             all_selected_indices = set(tod.index.tolist()) | set(toc.index.tolist())
             leftover = scored[~scored.index.isin(all_selected_indices)]
             
-            # Strict Exclusion: Also exclude vendors already in TOD for the backfill
-            if vcol and vcol in leftover.columns and tod_vendors:
-                leftover = leftover[~leftover[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+            # Also collect TOC vendors to exclude from backfill
+            toc_vendors = set()
+            if norm_col and norm_col in toc.columns:
+                for v in toc[norm_col].dropna().astype(str):
+                    v_clean = v.strip().lower()
+                    if v_clean and v_clean != 'nan':
+                        toc_vendors.add(v_clean)
+            all_used_vendors = tod_vendors | toc_vendors
+            
+            # Strict Exclusion: exclude ALL vendors already in TOD or TOC
+            if norm_col and norm_col in leftover.columns and all_used_vendors:
+                leftover = leftover[~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used_vendors)]
                 
             if len(leftover) > 0:
                 extra = leftover.sample(n=min(shortfall, len(leftover)), random_state=42)
@@ -520,14 +638,15 @@ class AuditAnalyzer:
         sorted_data = scored.sort_values(
             by=self.amount_col, ascending=False, key=lambda x: x.abs())
 
-        vcol = self.vendor_col
+        # Use _Norm_Vendor for forensic-grade entity matching
+        norm_col = '_Norm_Vendor' if '_Norm_Vendor' in sorted_data.columns else self.vendor_col
         tod_rows = []
         tod_cumval = 0
         seen_vendors = set()
         deferred = []
 
         for idx, row in sorted_data.iterrows():
-            vendor = str(row.get(vcol, '')).strip().lower() if vcol and vcol in sorted_data.columns else ''
+            vendor = str(row.get(norm_col, '')).strip().lower() if norm_col and norm_col in sorted_data.columns else ''
             is_named = vendor and vendor != 'nan' and vendor != ''
             
             if is_named and vendor in seen_vendors:
@@ -555,27 +674,27 @@ class AuditAnalyzer:
 
         print(f"    [VALUE] TOD: {len(tod)} rows, cumval={tod_cumval:.2f}")
 
-        # ── ZERO PARTY OVERLAP: Collect all vendor names from TOD ──
+        # ── ZERO PARTY OVERLAP: Use _Norm_Vendor for forensic entity matching ──
         tod_vendors = set()
-        if vcol and vcol in tod.columns:
-            for v in tod[vcol].dropna().astype(str):
+        if norm_col and norm_col in tod.columns:
+            for v in tod[norm_col].dropna().astype(str):
                 v_clean = v.strip().lower()
                 if v_clean and v_clean != 'nan':
                     tod_vendors.add(v_clean)
-        print(f"    [VALUE] TOD vendors to exclude from TOC: {len(tod_vendors)} — {list(tod_vendors)[:5]}...")
+        print(f"    [VALUE] TOD normalized vendors to exclude from TOC: {len(tod_vendors)} — {list(tod_vendors)[:5]}...")
 
         # TOC: From remaining rows — STRICTLY one per vendor, no party overlap with TOD
         remaining = sorted_data[~sorted_data.index.isin(tod_indices)]
-        # Remove any rows whose vendor was already selected in TOD
-        if vcol and vcol in remaining.columns and tod_vendors:
-            remaining = remaining[~remaining[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+        # Remove any rows whose normalized vendor was already selected in TOD
+        if norm_col and norm_col in remaining.columns and tod_vendors:
+            remaining = remaining[~remaining[norm_col].astype(str).str.strip().str.lower().isin(tod_vendors)]
         
         toc_rows = []
         toc_cumval = 0
         toc_seen_vendors = set()
 
         for idx, row in remaining.iterrows():
-            vendor = str(row.get(vcol, '')).strip().lower() if vcol and vcol in remaining.columns else ''
+            vendor = str(row.get(norm_col, '')).strip().lower() if norm_col and norm_col in remaining.columns else ''
             is_named = vendor and vendor != 'nan' and vendor != ''
             
             # Skip if this vendor already in TOC
@@ -599,9 +718,18 @@ class AuditAnalyzer:
             all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
             leftover = sorted_data[~sorted_data.index.isin(all_selected)]
             
-            # Strict Exclusion: Also exclude vendors already in TOD for the backfill
-            if vcol and vcol in leftover.columns and tod_vendors:
-                leftover = leftover[~leftover[vcol].astype(str).str.strip().str.lower().isin(tod_vendors)]
+            # Collect TOC vendors too
+            toc_vendors_set = set()
+            if norm_col and norm_col in toc.columns:
+                for v in toc[norm_col].dropna().astype(str):
+                    v_clean = v.strip().lower()
+                    if v_clean and v_clean != 'nan':
+                        toc_vendors_set.add(v_clean)
+            all_used = tod_vendors | toc_vendors_set
+            
+            # Strict Exclusion: exclude ALL vendors already in TOD or TOC
+            if norm_col and norm_col in leftover.columns and all_used:
+                leftover = leftover[~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used)]
                 
             # Sort leftover by value desc so we fill the gap fastest
             leftover = leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
@@ -731,3 +859,115 @@ class AuditAnalyzer:
             analysis['suspicious_narration_count'] = int(sus_count)
 
         return analysis
+
+    # ──────────────────────────────────────────────
+    # DASHBOARD INSIGHT GENERATOR
+    # ──────────────────────────────────────────────
+
+    def get_dashboard_json(self) -> Dict[str, Any]:
+        """Generate comprehensive dashboard metrics for the frontend."""
+        dashboard: Dict[str, Any] = {}
+        scored = self.score_risks()
+
+        # 1. Aggregated Metrics
+        stats = self.get_statistics()
+        dashboard['metrics'] = stats
+
+        # 2. Risk Concentration — Top 5% by value
+        if self.amount_col and len(scored) > 0:
+            amt = scored[self.amount_col].abs()
+            total_val = amt.sum()
+            top_5pct_n = max(1, int(math.ceil(len(scored) * 0.05)))
+            top_5pct = amt.nlargest(top_5pct_n)
+            dashboard['risk_concentration'] = {
+                'top_5pct_count': int(top_5pct_n),
+                'top_5pct_value': float(top_5pct.sum()),
+                'top_5pct_share': float(top_5pct.sum() / max(total_val, 1)),
+                'total_value': float(total_val)
+            }
+        else:
+            dashboard['risk_concentration'] = {
+                'top_5pct_count': 0, 'top_5pct_value': 0,
+                'top_5pct_share': 0, 'total_value': 0
+            }
+
+        # 3. Vendor Gini Coefficient
+        if '_Norm_Vendor' in scored.columns and self.amount_col:
+            vendor_totals = scored[scored['_Norm_Vendor'] != ''].groupby(
+                '_Norm_Vendor')[self.amount_col].apply(lambda x: x.abs().sum())
+            if len(vendor_totals) > 1:
+                vals = np.sort(vendor_totals.values).astype(float)
+                n = len(vals)
+                cumvals = np.cumsum(vals)
+                gini = (2.0 * np.sum((np.arange(1, n + 1) * vals)) / (n * np.sum(vals))) - (n + 1) / n
+                dashboard['vendor_gini'] = round(float(np.clip(gini, 0, 1)), 4)
+                # Top 5 vendors by value
+                top5 = vendor_totals.nlargest(5)
+                dashboard['top_vendors'] = [
+                    {'name': str(k).title(), 'value': float(v)}
+                    for k, v in top5.items()
+                ]
+            else:
+                dashboard['vendor_gini'] = 0.0
+                dashboard['top_vendors'] = []
+        else:
+            dashboard['vendor_gini'] = 0.0
+            dashboard['top_vendors'] = []
+
+        # 4. Monthly Trend Analysis + Z-Score Spike Detection
+        if self.date_col and self.amount_col:
+            try:
+                dates = pd.to_datetime(scored[self.date_col], errors='coerce',
+                                       dayfirst=True, format='mixed')
+                scored_copy = scored.copy()
+                scored_copy['_month'] = dates.dt.to_period('M')
+                monthly = scored_copy.groupby('_month').agg(
+                    txn_count=(self.amount_col, 'count'),
+                    txn_value=(self.amount_col, lambda x: float(x.abs().sum()))
+                ).reset_index()
+                monthly['_month'] = monthly['_month'].astype(str)
+
+                # Z-score on transaction count for spike detection
+                counts = monthly['txn_count'].values.astype(float)
+                if len(counts) > 2:
+                    mu = counts.mean()
+                    sigma = counts.std()
+                    if sigma > 0:
+                        zscores = ((counts - mu) / sigma).tolist()
+                    else:
+                        zscores = [0.0] * len(counts)
+                else:
+                    zscores = [0.0] * len(counts)
+
+                trends = []
+                for i, row in monthly.iterrows():
+                    trends.append({
+                        'month': row['_month'],
+                        'count': int(row['txn_count']),
+                        'value': float(row['txn_value']),
+                        'z_score': round(zscores[i], 2),
+                        'is_spike': abs(zscores[i]) > 2.0
+                    })
+                dashboard['monthly_trends'] = trends
+            except Exception:
+                dashboard['monthly_trends'] = []
+        else:
+            dashboard['monthly_trends'] = []
+
+        # 5. Risk distribution summary
+        dashboard['risk_distribution'] = {
+            'high': int((scored['_Risk_Category'] == 'High').sum()),
+            'medium': int((scored['_Risk_Category'] == 'Medium').sum()),
+            'low': int((scored['_Risk_Category'] == 'Low').sum())
+        }
+
+        # 6. Forensic flags summary
+        all_flags: List[str] = []
+        for f_str in scored['_Risk_Flags']:
+            if f_str and f_str != 'None':
+                all_flags.extend([f.strip() for f in str(f_str).split(';')])
+        flag_counts = dict(Counter(all_flags))
+        dashboard['forensic_flags'] = flag_counts
+
+        return dashboard
+
