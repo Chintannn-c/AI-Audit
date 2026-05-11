@@ -240,15 +240,19 @@ class AuditAIEngine:
             "Role: You are a highly accurate Document Processing Assistant specializing in financial data extraction. "
             "Task: Analyze the following OCR text from an invoice and extract data into a structured JSON format. "
             "Extraction Fields: "
-            "1. Invoice Number "
-            "2. Date (DD-MM-YYYY) "
-            "3. Vendor Name "
-            "4. GST Number "
-            "5. Line Items (Array of {item, qty, price, gst, total}) "
-            "6. Grand Total "
-            "Instructions: Return the data strictly in this JSON format: "
-            "{ \"data\": [ { \"field\": \"...\", \"value\": \"...\" } ], \"raw_extraction\": { ... } } "
-            "Document Text: \n" + extracted_text
+            "1. Invoice Number: The unique identification number. "
+            "2. Date: The date issued (Format as DD-MM-YYYY). "
+            "3. Item Name: The description or name of each line item. "
+            "4. Amount: The base price/taxable value per item (before GST). "
+            "5. GST: The tax amount (GST/CGST/SGST/IGST) for each item or total GST. "
+            "6. Total Amount: Final amount per line item (including tax) and the Grand Total of the invoice. "
+            "Output Format: Return the data strictly in this JSON format: "
+            "{ \"data\": [ { \"field\": \"Invoice Number\", \"value\": \"...\" }, "
+            "{ \"field\": \"Date\", \"value\": \"...\" }, "
+            "{ \"field\": \"Items\", \"value\": \"Item1: 100, Item2: 200...\" }, "
+            "{ \"field\": \"Total GST\", \"value\": \"...\" }, "
+            "{ \"field\": \"Grand Total\", \"value\": \"...\" } ] }"
+            "\nDocument Text: \n" + extracted_text
         )
         print(f"[AI] Starting Detailed Vouching from OCR text...")
         res = await self.route_task('VOUCHING', {'prompt': prompt})
