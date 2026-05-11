@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "buildAptPackages": ["tesseract-ocr", "libgl1-mesa-glx", "zlib1g-dev"],
+  "deploy": {
+    "aptPackages": ["tesseract-ocr", "libgl1-mesa-glx", "zlib1g"]
+  }
+}
