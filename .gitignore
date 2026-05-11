@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints
+*.xlsx
+*.csv
+*.xls
+node_modules/
+.DS_Store

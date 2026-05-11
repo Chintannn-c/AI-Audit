@@ -1,0 +1,19 @@
+{
+  "name": "audit-ai-assistant",
+  "version": "1.0.0",
+  "description": "AI-Powered Statutory Audit Assistant with Tally Formatting Preservation",
+  "main": "main.py",
+  "scripts": {
+    "start": "python -m uvicorn main:app --port 8000",
+    "dev": "python -m uvicorn main:app --reload --port 8000",
+    "install-deps": "pip install -r requirements.txt"
+  },
+  "keywords": [
+    "audit",
+    "ai",
+    "fastapi",
+    "tally"
+  ],
+  "author": "Antigravity AI",
+  "license": "MIT"
+}

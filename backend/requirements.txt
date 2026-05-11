@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+openpyxl
+google-generativeai
+groq
+python-multipart
+jinja2

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>StatAudit AI | Enterprise Audit Sampling Platform</title>
+    <meta name="description" content="AI-powered statutory audit sampling platform for Test of Details and Test of Controls">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="topProgressBar" class="top-progress-bar"></div>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i data-lucide="shield-check" style="color:var(--accent-primary);"></i>
+                    <span>StatAudit AI</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-label">Main Menu</div>
+                <a href="#" class="nav-link active" data-target="landing-page" onclick="navigateTo('landing-page')">
+                    <i data-lucide="home"></i> Home
+                </a>
+                <a href="#" class="nav-link" data-target="materiality-section" onclick="navigateTo('materiality-section')">
+                    <i data-lucide="calculator"></i> Materiality
+                </a>
+                <a href="#" class="nav-link" data-target="risk-section" onclick="navigateTo('risk-section')">
+                    <i data-lucide="clipboard-list"></i> Classification
+                </a>
+                <a href="#" class="nav-link" data-target="sampling-section" onclick="navigateTo('sampling-section')">
+                    <i data-lucide="layers"></i> Sampling
+                </a>
+                <a href="#" class="nav-link" data-target="vouching-section" onclick="navigateTo('vouching-section')">
+                    <i data-lucide="search"></i> Vouching
+                </a>
+                <div class="nav-label" style="margin-top:20px;">Analysis</div>
+                <a href="#" class="nav-link" data-target="reports-section" onclick="navigateTo('reports-section')">
+                    <i data-lucide="file-text"></i> Reports
+                </a>
+            </nav>
+            <div style="padding:16px;margin-top:auto;border-top:1px solid var(--glass-border);">
+                <button onclick="clearSession()" class="btn-secondary w-full" style="font-size:11px;padding:8px;">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:4px;"></i> New Session
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main-wrapper">
+            <div class="content-area">
+
+                <!-- MATERIALITY -->
+                <section id="materiality-section" class="content-section hidden">
+                    <div class="section-header mb-16">
+                        <h1 style="font-size:22px;">Materiality Planning</h1>
+                        <p class="text-secondary">Set benchmarks and assess risk to determine audit thresholds.</p>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                        <!-- Input Card -->
+                        <div class="glass-card">
+                            <h3 style="margin-bottom:14px; display:flex; align-items:center; gap:8px; font-size:15px;">
+                                <i data-lucide="calculator" style="width:18px; height:18px; color:var(--accent-primary);"></i> Benchmarking
+                            </h3>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Total Turnover (₹ Crore)</label>
+                                <input type="number" id="turnoverInput" class="glass-input" placeholder="e.g. 500">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Audit Risk Level (ROMM)</label>
+                                <div class="toggle-group" id="rommToggleGroup">
+                                    <button type="button" class="toggle-option active" onclick="selectRisk('low', this)">Low</button>
+                                    <button type="button" class="toggle-option" onclick="selectRisk('medium', this)">Medium</button>
+                                    <button type="button" class="toggle-option" onclick="selectRisk('high', this)">High</button>
+                                </div>
+                                <input type="hidden" id="rommInput" value="low">
+                            </div>
+
+                            <!-- Dynamic Exact % Picker -->
+                            <div id="exactPctPicker" class="hidden" style="margin-top:-4px; margin-bottom:10px; padding:10px; background:rgba(99,102,241,0.05); border-radius:10px; border:1px dashed var(--accent-primary);">
+                                <label style="display:block; font-size:10px; color:var(--accent-primary); font-weight:700; text-transform:uppercase; margin-bottom:8px;">Select Exact Basis (%)</label>
+                                <div id="exactPctOptions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                <div class="form-group">
+                                    <label class="form-label">Perf. Mat (%)</label>
+                                    <input type="number" id="perfPctInput" class="glass-input" value="75">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Trivial (%)</label>
+                                    <input type="number" id="trivialPctInput" class="glass-input" value="3">
+                                </div>
+                            </div>
+
+                            <button id="calcMaterialityBtn" class="btn-primary w-full mt-8" style="padding:12px;">
+                                Calculate Thresholds
+                            </button>
+                        </div>
+
+                        <!-- Results Card -->
+                        <div class="glass-card">
+                            <h3 style="margin-bottom:14px; font-size:15px;">Audit Thresholds</h3>
+                            <div id="materialityResults" class="hidden">
+                                <div style="display:flex; flex-direction:column; gap:12px;">
+                                    <div style="padding:14px; background:rgba(99,102,241,0.05); border-radius:12px; border:1px solid var(--glass-border);">
+                                        <span class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:1px;">Overall Materiality</span>
+                                        <h2 id="resOverall" style="font-size:28px; color:var(--accent-primary); margin-top:4px;">₹ 0.00 Cr</h2>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                        <div style="padding:12px; background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid var(--glass-border);">
+                                            <span class="text-muted" style="font-size:11px;">Performance</span>
+                                            <h4 id="resPerf" style="font-size:18px; margin-top:2px;">₹ 0.00 Cr</h4>
+                                        </div>
+                                        <div style="padding:12px; background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid var(--glass-border);">
+                                            <span class="text-muted" style="font-size:11px;">Trivial</span>
+                                            <h4 id="resTrivial" style="font-size:18px; color:var(--danger); margin-top:2px;">₹ 0.00 Cr</h4>
+                                        </div>
+                                    </div>
+                                    <button class="btn-secondary w-full mt-8" onclick="navigateTo('risk-section')">Confirm & Proceed to Classification →</button>
+                                </div>
+                            </div>
+                            <div id="materialityPlaceholder" style="height:200px; display:flex; align-items:center; justify-content:center; text-align:center;">
+                                <p class="text-muted">Enter turnover to see AI-calculated thresholds</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LANDING PAGE -->
+                <section id="landing-page" class="content-section" style="justify-content:center; align-items:center; padding:0;">
+                    <div class="hero-section" style="max-width:900px;">
+                        <div class="badge badge-low" style="margin-bottom:14px; padding:6px 14px; font-size:12px;">v3.0 ENTERPRISE EDITION</div>
+                        <h1 class="hero-title" style="font-size:56px; line-height:1.1; margin-bottom:16px;">AI-Powered Statutory<br>Audit Sampling</h1>
+                        <p class="hero-subtitle" style="font-size:16px; max-width:650px; margin:0 auto 28px auto; opacity:0.8;">Intelligent sample selection for Test of Details & Test of Controls. Dual-mode sampling, 10 risk indicators, zero-overlap guarantee.</p>
+                        
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; width:100%;">
+                            <div class="glass-card" style="text-align:left; border-left:4px solid var(--accent-primary); padding:24px;">
+                                <h3 style="margin-bottom:8px; font-size:17px;">Materiality & Planning</h3>
+                                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">Calculate statutory materiality thresholds and perform audit classification.</p>
+                                <button class="btn-primary w-full" onclick="navigateTo('materiality-section')">Start Planning Audit</button>
+                            </div>
+                            <div class="glass-card" style="text-align:left; border-left:4px solid #10b981; padding:24px;">
+                                <h3 style="margin-bottom:8px; font-size:17px;">Direct Sampling Engine</h3>
+                                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">Upload your ledger and run AI-powered audit sampling immediately.</p>
+                                <button class="btn-primary w-full" style="background:#10b981; border-color:#10b981;" onclick="navigateTo('sampling-section')">Jump to Sampling</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+
+
+                <!-- RISK ASSESSMENT -->
+                <section id="risk-section" class="content-section hidden">
+                    <div class="section-header mb-24">
+                        <h2>Audit Classification</h2>
+                        <p>AI will determine the audit type based on statutory and risk thresholds.</p>
+                    </div>
+                    <div class="glass-card" style="max-width:680px;margin:0 auto;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <label class="option-card">
+                                <input type="checkbox" id="checkTurnover">
+                                <div class="custom-checkbox"></div>
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    <div style="display:flex;align-items:center;gap:8px;color:var(--accent-primary);margin-bottom:4px;">
+                                        <i data-lucide="bar-chart-3" style="width:16px; height:16px;"></i>
+                                        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;">Turnover</span>
+                                    </div>
+                                    <h4 style="font-size:14px;">a) Above ₹250 Crore?</h4>
+                                    <p style="font-size:11px;">Statutory threshold for audit</p>
+                                </div>
+                            </label>
+
+                            <label class="option-card">
+                                <input type="checkbox" id="checkIFC">
+                                <div class="custom-checkbox"></div>
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    <div style="display:flex;align-items:center;gap:8px;color:var(--accent-primary);margin-bottom:4px;">
+                                        <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                                        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;">Compliance</span>
+                                    </div>
+                                    <h4 style="font-size:14px;">b) IFC Applicable?</h4>
+                                    <p style="font-size:11px;">Internal Financial Controls</p>
+                                </div>
+                            </label>
+
+                            <label class="option-card">
+                                <input type="checkbox" id="checkGov">
+                                <div class="custom-checkbox"></div>
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    <div style="display:flex;align-items:center;gap:8px;color:var(--accent-primary);margin-bottom:4px;">
+                                        <i data-lucide="users" style="width:16px; height:16px;"></i>
+                                        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;">Governance</span>
+                                    </div>
+                                    <h4 style="font-size:14px;">c) Weak Structures?</h4>
+                                    <p style="font-size:11px;">Control environment risk</p>
+                                </div>
+                            </label>
+
+                            <label class="option-card">
+                                <input type="checkbox" id="checkMis">
+                                <div class="custom-checkbox"></div>
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    <div style="display:flex;align-items:center;gap:8px;color:var(--accent-primary);margin-bottom:4px;">
+                                        <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
+                                        <span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;">History</span>
+                                    </div>
+                                    <h4 style="font-size:14px;">d) Prior Misstatements?</h4>
+                                    <p style="font-size:11px;">Known historical audit errors</p>
+                                </div>
+                            </label>
+                        </div>
+                        <button id="assessRiskBtn" class="btn-primary w-full mt-16">Classify Audit</button>
+                        <div id="riskResults" class="hidden mt-16" style="padding:16px;border-radius:12px;border:1px solid var(--glass-border);">
+                            <div style="text-align:center;">
+                                <h2 id="resAuditType" style="font-size:28px;margin-bottom:8px;">—</h2>
+                                <p id="resClassification" class="text-secondary" style="font-size:14px;">—</p>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+                                <div id="todApplicable" class="glass-card" style="padding:12px;text-align:center;">
+                                    <h4 style="color:var(--accent-primary);">Test of Details</h4>
+                                    <p class="text-muted" style="font-size:12px;">Substantive testing</p>
+                                    <div class="badge badge-low mt-8" id="todBadge">APPLICABLE</div>
+                                </div>
+                                <div class="glass-card" style="padding:12px;text-align:center;" id="tocCard">
+                                    <h4 id="tocTitle" style="font-size:15px;">Test of Controls (TOC)</h4>
+                                    <p class="text-muted" style="font-size:11px;margin:6px 0;">Selection: <strong>Random Basis</strong></p>
+                                    <div class="badge" id="tocBadge">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══════════════════════════════════════ -->
+                <!-- AUDIT SAMPLING — THE CORE MODULE       -->
+                <!-- ═══════════════════════════════════════ -->
+                <section id="sampling-section" class="content-section hidden">
+                    <div class="section-header"><h2>AI Audit Sampling Engine</h2><p>Upload ledger, configure sampling, and download enterprise audit working papers.</p></div>
+
+                    <!-- Step 1: Audit Area + Upload -->
+                    <div class="glass-card" id="samplingStep1">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <h3 style="font-size:15px;"><i data-lucide="upload-cloud" style="display:inline;vertical-align:middle;margin-right:6px;"></i> Step 1 — Select Area & Upload Ledger</h3>
+                            <div class="badge badge-low">STEP 1 OF 2</div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+                            <button class="toggle-option active" data-category="Sales" onclick="selectCategory(this)">📊 Sales</button>
+                            <button class="toggle-option" data-category="Expenses" onclick="selectCategory(this)">💰 Expenses</button>
+                            <button class="toggle-option" data-category="Purchases" onclick="selectCategory(this)">🛒 Purchases</button>
+                        </div>
+
+                        <div class="upload-zone" id="uploadZone">
+                            <i data-lucide="upload-cloud" style="width:40px; height:40px; color:var(--accent-primary);" class="upload-icon"></i>
+                            <h3 style="font-size:16px; margin-top:8px;">Drag & Drop Ledger File</h3>
+                            <p class="text-secondary mt-8" style="font-size:12px;">or click to browse — supports .xlsx, .xls, .csv</p>
+                            <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv" hidden>
+                            <p id="fileNameDisplay" class="mt-16 text-muted" style="font-size:13px;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Sampling Config -->
+                    <div class="glass-card mt-24" id="samplingStep2" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                            <h3 style="font-size:15px;"><i data-lucide="settings" style="display:inline;vertical-align:middle;margin-right:6px;"></i> Step 2 — Configure Sampling</h3>
+                            <div class="badge badge-low">STEP 2 OF 2</div>
+                        </div>
+
+                        <div class="config-panel">
+                            <!-- Sample % -->
+                            <div>
+                                <label class="form-label">Sample Percentage (Combined TOD + TOC)</label>
+                                <div style="display:flex;align-items:center;gap:16px;">
+                                    <input type="range" id="samplePctSlider" class="range-slider" min="5" max="100" value="50" style="flex:1;">
+                                    <input type="number" id="samplePctInput" class="glass-input" value="50" min="1" max="100" style="width:80px;text-align:center;">
+                                    <span class="text-muted">%</span>
+                                </div>
+                            </div>
+
+                            <!-- TOD/TOC Split -->
+                            <div>
+                                <label class="form-label">TOD / TOC Split Ratio</label>
+                                <div style="display:flex;align-items:center;gap:16px;">
+                                    <input type="range" id="todPctSlider" class="range-slider" min="50" max="90" value="70" style="flex:1;">
+                                    <span id="todPctDisplay" style="font-weight:700;color:var(--accent-primary);min-width:100px;text-align:center;">70 / 30</span>
+                                </div>
+                            </div>
+
+                            <!-- Sampling Basis -->
+                            <div class="full-width">
+                                <label class="form-label">Sampling Basis</label>
+                                <div class="toggle-group">
+                                    <button class="toggle-option active" data-basis="count" onclick="selectBasis(this)">📋 By Number of Transactions</button>
+                                    <button class="toggle-option" data-basis="value" onclick="selectBasis(this)">💵 By Total Transaction Value</button>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="full-width" style="display:flex;gap:12px;justify-content:center;margin-top:10px;">
+                                <button id="analyzeBtn" class="btn-primary" style="padding:12px 32px;font-size:14px;"><i data-lucide="cpu"></i> Analyze & Generate Samples</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Panel -->
+                    <div id="samplingResults" class="hidden mt-24">
+                        <div class="glass-card">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                <h3>📊 Sampling Results</h3>
+                                <div style="display:flex; gap:12px;">
+                                    <button onclick="regenerateSampling()" class="btn-secondary"><i data-lucide="refresh-cw"></i> Regenerate</button>
+                                    <button id="downloadBtn" class="btn-primary"><i data-lucide="download"></i> Download Working Papers</button>
+                                </div>
+                            </div>
+
+                            <div class="results-grid">
+                                <div class="result-card"><div class="result-value" id="resTotalTxns">0</div><div class="result-label">Total Transactions</div></div>
+                                <div class="result-card"><div class="result-value" id="resTodCount">0</div><div class="result-label">TOD Samples</div></div>
+                                <div class="result-card"><div class="result-value" id="resTocCount">0</div><div class="result-label">TOC Samples</div></div>
+                                <div class="result-card"><div class="result-value" id="resTotalSelected">0</div><div class="result-label">Total Selected</div></div>
+                                <div class="result-card"><div class="result-value" id="resCoverage">0%</div><div class="result-label">Coverage</div></div>
+                            </div>
+
+                            <div class="mt-16" style="display:grid; grid-template-columns: 1.5fr 1fr; gap:16px; align-items:center;">
+                                <div id="aiInsightBox" style="background:rgba(99,102,241,0.05);padding:20px;border-radius:16px;border-left:4px solid var(--accent-primary); height:100%; display:flex; align-items:center;">
+                                    <p class="text-secondary" id="aiInsightText" style="margin:0; font-size:13px; line-height:1.6;">AI analysis will appear here...</p>
+                                </div>
+                                <div style="height: 140px; width: 100%; position: relative;">
+                                    <canvas id="samplingChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Top Transactions Preview -->
+                            <div class="mt-32">
+                                <h4 style="margin-bottom:16px;">Top Transactions (Highest Value)</h4>
+                                <div class="table-container">
+                                    <table class="premium-table">
+                                        <thead id="previewHead"></thead>
+                                        <tbody id="previewBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- VOUCHING -->
+                <section id="vouching-section" class="content-section hidden">
+                    <div class="section-header mb-16"><h2>AI Invoice Vouching</h2><p>Upload invoices to verify against your sampled transactions using the Multi-Agent Ensemble.</p></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                        <div class="glass-card">
+                            <h3 style="font-size:15px;"><i data-lucide="upload" style="display:inline;vertical-align:middle;margin-right:6px;"></i> Upload Invoice</h3>
+                            <p class="text-secondary mt-8" style="font-size:12px;">Upload an invoice image (JPG/PNG/PDF) and the AI Ensemble will extract and cross-verify the data.</p>
+                            <div class="upload-zone mt-8" id="vouchUploadZone" style="min-height:140px;">
+                                <i data-lucide="scan-search" style="width:36px; height:36px; color:var(--accent-primary);"></i>
+                                <h4 class="mt-8">Drop Invoice Here</h4>
+                                <p class="text-muted" style="font-size:12px;">JPG, PNG, or PDF</p>
+                                <input type="file" id="vouchFileInput" accept=".jpg,.jpeg,.png,.pdf" hidden>
+                            </div>
+                            <div id="vouchStatus" class="hidden mt-8" style="padding:12px;border-radius:10px;background:rgba(99,102,241,0.08);">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div class="processing-spinner" style="width:24px;height:24px;"></div>
+                                    <span id="vouchStatusText" class="text-secondary" style="font-size:13px;">Processing...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card">
+                            <h3 style="font-size:15px;">🤖 AI Ensemble Pipeline</h3>
+                            <div class="mt-8" style="display:flex;flex-direction:column;gap:10px;">
+                                <div id="agent1Status" class="glass-card" style="padding:12px;background:rgba(255,255,255,0.02);opacity:0.4;">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <div style="width:10px;height:10px;border-radius:50%;background:var(--text-muted)" id="agent1Dot"></div>
+                                        <div>
+                                            <h4 style="font-size:14px;">Agent 1 — Gemini Vision</h4>
+                                            <p class="text-muted" style="font-size:12px;">Deep OCR extraction of invoice data</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="agent2Status" class="glass-card" style="padding:12px;background:rgba(255,255,255,0.02);opacity:0.4;">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <div style="width:10px;height:10px;border-radius:50%;background:var(--text-muted)" id="agent2Dot"></div>
+                                        <div>
+                                            <h4 style="font-size:14px;">Agent 2 — Groq Logic</h4>
+                                            <p class="text-muted" style="font-size:12px;">Cross-reference against ERP ledger context</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Vouching Results -->
+                    <div id="vouchResults" class="hidden mt-24">
+                        <div class="glass-card">
+                            <h3>📋 Extracted Invoice Data</h3>
+                            <div class="table-container mt-16">
+                                <table class="premium-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Extracted Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vouchTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="vouchFlags" class="glass-card mt-16" style="border-left:4px solid var(--accent-primary);">
+                            <h4 id="vouchFlagsTitle">⏳ Agent 2 Validation</h4>
+                            <p id="vouchFlagsText" class="text-secondary mt-8">Waiting for results...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- REPORTS -->
+                <section id="reports-section" class="content-section hidden">
+                    <div class="section-header mb-16"><h2>Audit Working Papers</h2></div>
+
+                    <!-- AI Executive Summary -->
+                    <div class="glass-card mb-16">
+                        <h3 style="font-size:15px;">🤖 AI Executive Summary</h3>
+                        <div id="aiOutput" class="text-secondary mt-8" style="font-size:13px;">Complete an audit sampling session to see results here.</div>
+                    </div>
+
+                    <!-- Materiality Summary -->
+                    <div class="glass-card mb-16" id="reportMaterialityCard">
+                        <h3 style="font-size:15px;">📐 Materiality Thresholds</h3>
+                        <div id="reportMaterialityData" class="mt-8" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                            <div class="result-card"><div class="result-value" id="rptOverall">—</div><div class="result-label">Overall Materiality</div></div>
+                            <div class="result-card"><div class="result-value" id="rptPerf">—</div><div class="result-label">Performance Materiality</div></div>
+                            <div class="result-card"><div class="result-value" id="rptTrivial">—</div><div class="result-label">Trivial Threshold</div></div>
+                        </div>
+                    </div>
+
+                    <!-- Classification Summary -->
+                    <div class="glass-card mb-16" id="reportClassCard">
+                        <h3 style="font-size:15px;">🏛️ Audit Classification</h3>
+                        <div class="mt-8" style="display:flex;gap:20px;align-items:center;">
+                            <div><span class="text-secondary" style="font-size:12px;">Audit Type:</span> <strong id="rptAuditType" style="font-size:14px;">—</strong></div>
+                            <div><span class="text-secondary" style="font-size:12px;">Approach:</span> <span id="rptApproach" class="text-secondary" style="font-size:13px;">—</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Sampling Summary -->
+                    <div class="glass-card mb-16" id="reportSamplingCard">
+                        <h3 style="font-size:15px;">📊 Sampling Results</h3>
+                        <div id="reportSamplingData" class="mt-8" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
+                            <div class="result-card"><div class="result-value" id="rptTotalTxns">—</div><div class="result-label">Total Txns</div></div>
+                            <div class="result-card"><div class="result-value" id="rptTodCount">—</div><div class="result-label">TOD</div></div>
+                            <div class="result-card"><div class="result-value" id="rptTocCount">—</div><div class="result-label">TOC</div></div>
+                            <div class="result-card"><div class="result-value" id="rptTotalSel">—</div><div class="result-label">Total Selected</div></div>
+                            <div class="result-card"><div class="result-value" id="rptCoverage">—</div><div class="result-label">Coverage</div></div>
+                        </div>
+                    </div>
+
+                    <!-- Download Actions -->
+                    <div class="glass-card">
+                        <h3 style="font-size:15px;">📥 Export Working Papers</h3>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02);">
+                                <h4>📥 Sampling Report</h4>
+                                <p class="text-secondary text-small mt-8">4-sheet workbook: Original Ledger, TOD, TOC, Summary</p>
+                                <button id="downloadBtn2" class="btn-primary mt-16" disabled><i data-lucide="download"></i> Download Excel</button>
+                            </div>
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02);">
+                                <h4>📋 Materiality Working Paper</h4>
+                                <p class="text-secondary text-small mt-8">Formal documentation of materiality benchmarks.</p>
+                                <button id="exportPdfBtn" class="btn-secondary mt-16"><i data-lucide="file-text"></i> Export PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+
+        <!-- PROCESSING OVERLAY -->
+        <div id="processingOverlay" class="processing-overlay hidden">
+            <div class="processing-spinner"></div>
+            <h2 id="processingTitle" style="margin-bottom:8px;">AI Engine Processing...</h2>
+            <p class="text-secondary" id="processingSubtitle">Please wait while we analyze your ledger</p>
+            <ul class="processing-steps" id="processingSteps">
+                <li data-step="1"><span class="step-icon">○</span> Reading ledger file...</li>
+                <li data-step="2"><span class="step-icon">○</span> Analyzing transactions...</li>
+                <li data-step="3"><span class="step-icon">○</span> Calculating sample size...</li>
+                <li data-step="4"><span class="step-icon">○</span> Selecting TOD samples...</li>
+                <li data-step="5"><span class="step-icon">○</span> Selecting TOC samples...</li>
+            </ul>
+        </div>
+    </div> <!-- close app-container -->
+    <script src="app.js"></script>
+</body>
+</html>
