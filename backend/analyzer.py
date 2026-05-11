@@ -729,15 +729,19 @@ class AuditAnalyzer:
                 strict_leftover = strict_leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
                 
                 extra_rows = []
+                seen_in_backfill = set()
                 for idx, row in strict_leftover.iterrows():
-                    extra_rows.append(idx)
-                    combined_value += abs(row[self.amount_col])
+                    v = str(row.get(norm_col, '')).strip().lower()
+                    if v and v != 'nan' and v not in seen_in_backfill:
+                        extra_rows.append(idx)
+                        seen_in_backfill.add(v)
+                        combined_value += abs(row[self.amount_col])
                     if combined_value >= target_value:
                         break
                 if extra_rows:
                     extra = sorted_data.loc[extra_rows].copy()
                     toc = pd.concat([toc, extra])
-                    print(f"    [VALUE] BACKFILL (Stage 1): Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
+                    print(f"    [VALUE] BACKFILL: Added {len(extra)} unique vendors to TOC (Strict Global Uniqueness)")
 
 
         print(f"    [VALUE] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} rows")
