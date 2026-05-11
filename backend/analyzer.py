@@ -32,11 +32,17 @@ class AuditAnalyzer:
         self.invoice_col = self._detect_invoice_column()
         self.vendor_col = self._detect_vendor_column()
 
+        # Configuration for round values
+        self.round_values = [1000, 5000, 10000, 50000, 100000, 500000, 1000000]
+
         # Clean amounts
         self._clean_amounts()
 
         # Filter non-transaction rows (totals, balances, headers)
         self._filter_non_transaction_rows()
+
+        # Cache pre-parsed dates to avoid repeated heavy parsing
+        self._cache_dates()
 
         # Forensic: Normalize vendor names for entity collapsing
         self._normalize_vendors()
@@ -46,6 +52,14 @@ class AuditAnalyzer:
 
         # Sort highest value first
         self._sort_by_value()
+
+    def _cache_dates(self):
+        """Pre-parse dates once and store in a dedicated column."""
+        if not self.date_col:
+            self.df['_Parsed_Date'] = pd.NaT
+            return
+        # Use mixed format and dayfirst=True for Indian accounting standards
+        self.df['_Parsed_Date'] = pd.to_datetime(self.df[self.date_col], errors='coerce', dayfirst=True, format='mixed')
 
     # ──────────────────────────────────────────────
     # COLUMN DETECTION
@@ -98,7 +112,7 @@ class AuditAnalyzer:
                 if nums.notnull().sum() > len(self.df) * 0.4:
                     self.df[col] = nums
                     return col
-            except:
+            except Exception:
                 continue
         return None
 
@@ -143,7 +157,9 @@ class AuditAnalyzer:
         r'\b(pvt\.?\s*ltd\.?|private\s+limited|limited|ltd\.?|llp|'
         r'inc\.?|incorporated|corp\.?|corporation|co\.?|company|'
         r'enterprises?|traders?|associates?|solutions?|'
-        r'industries?|international|india|group)\b',
+        r'industries?|international|india|group|mfg|manufacturing|'
+        r'services|logistics|trading|agency|agencies|contractors?|'
+        r'developers?|builders?|ventures?|holdings?)\b',
         re.IGNORECASE
     )
 
@@ -210,7 +226,7 @@ class AuditAnalyzer:
             try:
                 num = float(s)
                 return -num if is_neg else num
-            except:
+            except Exception:
                 return 0.0
 
         self.df[col] = self.df[col].apply(parse_accounting_num)
@@ -286,148 +302,133 @@ class AuditAnalyzer:
         amt = data[self.amount_col].abs()
         avg = amt.mean()
         std = amt.std() if not pd.isna(amt.std()) else 0
+        dates = data['_Parsed_Date']
 
-        flags = [[] for _ in range(len(data))]
+        # Use dictionary for flags to avoid index misalignment issues
+        flags_dict = {idx: [] for idx in data.index}
 
         # 1. High Value (above mean + 2σ)
         threshold = avg + 2 * std
-        hv = amt > threshold
-        data.loc[hv, '_Risk_Score'] += 15
-        for i in hv[hv].index:
-            flags[i].append('High Value')
+        hv_mask = amt > threshold
+        data.loc[hv_mask, '_Risk_Score'] += 15
+        for idx in hv_mask[hv_mask].index:
+            flags_dict[idx].append('High Value')
 
         # 2. Above Performance Materiality
         if self.performance_materiality > 0:
-            above_mat = amt >= self.performance_materiality
-            data.loc[above_mat, '_Risk_Score'] += 20
-            for i in above_mat[above_mat].index:
-                flags[i].append('Above Materiality')
+            mat_mask = amt >= self.performance_materiality
+            data.loc[mat_mask, '_Risk_Score'] += 20
+            for idx in mat_mask[mat_mask].index:
+                flags_dict[idx].append('Above Materiality')
 
         # 3. Duplicate Amounts
         dup_mask = amt.duplicated(keep=False) & (amt > 0)
         data.loc[dup_mask, '_Risk_Score'] += 10
-        for i in dup_mask[dup_mask].index:
-            flags[i].append('Duplicate Amount')
+        for idx in dup_mask[dup_mask].index:
+            flags_dict[idx].append('Duplicate Amount')
 
-        # 4. Round Values (multiples of 10000, 50000, 100000)
-        round_mask = (amt > 0) & ((amt % 100000 == 0) | (amt % 50000 == 0) | (amt % 10000 == 0))
+        # 4. Round Values (Configurable) — only flag non-zero amounts
+        round_mask = (amt > 0) & (amt.apply(lambda x: any(x % rv == 0 for rv in self.round_values)))
         data.loc[round_mask, '_Risk_Score'] += 5
-        for i in round_mask[round_mask].index:
-            flags[i].append('Round Value')
+        for idx in round_mask[round_mask].index:
+            flags_dict[idx].append('Round Value')
 
         # 5. Month-end Postings (last 3 days of month)
         if self.date_col:
-            try:
-                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
-                month_end = dates.dt.is_month_end | (dates.dt.day >= 28)
-                data.loc[month_end, '_Risk_Score'] += 5
-                for i in month_end[month_end].index:
-                    flags[i].append('Month-End')
-            except:
-                pass
+            month_end = dates.dt.is_month_end | (dates.dt.day >= 28)
+            data.loc[month_end, '_Risk_Score'] += 5
+            for idx in month_end[month_end].index:
+                flags_dict[idx].append('Month-End')
 
         # 6. Weekend Postings
         if self.date_col:
-            try:
-                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
-                weekend = dates.dt.dayofweek.isin([5, 6])
-                data.loc[weekend, '_Risk_Score'] += 10
-                for i in weekend[weekend].index:
-                    flags[i].append('Weekend Posting')
-            except:
-                pass
+            weekend = dates.dt.dayofweek.isin([5, 6])
+            data.loc[weekend, '_Risk_Score'] += 10
+            for idx in weekend[weekend].index:
+                flags_dict[idx].append('Weekend Posting')
 
         # 7. Suspicious Narration
         if self.narration_col:
             suspicious_keywords = ['cash', 'adjustment', 'write off', 'write-off',
                                    'reversal', 'correction', 'void', 'cancel',
-                                   'refund', 'suspense', 'miscellaneous']
+                                   'refund', 'suspense', 'miscellaneous', 'illegal']
             narr = data[self.narration_col].astype(str).str.lower()
             for kw in suspicious_keywords:
                 sus_mask = narr.str.contains(kw, na=False)
                 data.loc[sus_mask, '_Risk_Score'] += 8
-                for i in sus_mask[sus_mask].index:
-                    if 'Suspicious Narration' not in flags[i]:
-                        flags[i].append('Suspicious Narration')
+                for idx in sus_mask[sus_mask].index:
+                    if 'Suspicious Narration' not in flags_dict[idx]:
+                        flags_dict[idx].append('Suspicious Narration')
 
         # 8. Unusual Spikes (>3x average)
         spike = amt > (3 * avg)
-        spike_only = spike & ~hv  # Don't double-count with High Value
+        spike_only = spike & ~hv_mask
         data.loc[spike_only, '_Risk_Score'] += 12
-        for i in spike_only[spike_only].index:
-            flags[i].append('Unusual Spike')
+        for idx in spike_only[spike_only].index:
+            flags_dict[idx].append('Unusual Spike')
 
         # 9. Zero or Negative Values
         zero_neg = data[self.amount_col] <= 0
         data.loc[zero_neg, '_Risk_Score'] += 5
-        for i in zero_neg[zero_neg].index:
-            flags[i].append('Zero/Negative')
+        for idx in zero_neg[zero_neg].index:
+            flags_dict[idx].append('Zero/Negative')
 
         # 10. Below Trivial Threshold
         if self.trivial_threshold > 0:
             trivial = amt <= self.trivial_threshold
-            data.loc[trivial, '_Risk_Score'] -= 10  # Lower priority
-            for i in trivial[trivial].index:
-                flags[i].append('Below Trivial')
+            data.loc[trivial, '_Risk_Score'] -= 10
+            for idx in trivial[trivial].index:
+                flags_dict[idx].append('Below Trivial')
 
-        # 11. FORENSIC: Split Transaction Detection
-        # Multiple small payments to the same vendor on the same day
+        # 11. FORENSIC: Split Transaction Detection (Optimized)
         if '_Norm_Vendor' in data.columns and self.date_col:
-            try:
-                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
-                data['_tmp_date'] = dates.dt.date
-                group_cols = ['_Norm_Vendor', '_tmp_date']
-                vendor_day = data[data['_Norm_Vendor'] != ''].groupby(group_cols)
-                split_indices = set()
-                for (vendor, day), grp in vendor_day:
-                    if len(grp) >= 3 and amt.loc[grp.index].mean() < avg:
-                        split_indices.update(grp.index.tolist())
-                split_mask = data.index.isin(split_indices)
-                data.loc[split_mask, '_Risk_Score'] += 18
-                for i in data[split_mask].index:
-                    flags[i].append('Split Transaction')
-                data.drop(columns=['_tmp_date'], inplace=True, errors='ignore')
-            except Exception:
-                pass
+            temp = data[data['_Norm_Vendor'] != ''].copy()
+            temp['_Date_Only'] = dates.dt.date
+            # Group by Vendor and Day
+            grouped = temp.groupby(['_Norm_Vendor', '_Date_Only'])
+            for (vendor, day), grp in grouped:
+                if len(grp) >= 3 and amt.loc[grp.index].mean() < avg:
+                    data.loc[grp.index, '_Risk_Score'] += 18
+                    for idx in grp.index:
+                        flags_dict[idx].append('Split Transaction')
 
-        # 12. FORENSIC: Round-Tripping Pattern
-        # Debit + Credit to same vendor within 7 days with similar amounts
+        # 12. FORENSIC: Round-Tripping Pattern (O(N) Optimized)
         if '_Norm_Vendor' in data.columns and self.date_col:
-            try:
-                dates = pd.to_datetime(data[self.date_col], errors='coerce', dayfirst=True, format='mixed')
-                raw_amt = data[self.amount_col]
-                for vendor, grp in data[data['_Norm_Vendor'] != ''].groupby('_Norm_Vendor'):
-                    if len(grp) < 2:
-                        continue
-                    pos = grp[raw_amt.loc[grp.index] > 0]
-                    neg = grp[raw_amt.loc[grp.index] < 0]
-                    for pi in pos.index:
-                        for ni in neg.index:
-                            try:
-                                d1 = dates.loc[pi]
-                                d2 = dates.loc[ni]
-                                if pd.notna(d1) and pd.notna(d2) and abs((d1 - d2).days) <= 7:
-                                    a1 = abs(raw_amt.loc[pi])
-                                    a2 = abs(raw_amt.loc[ni])
-                                    if a1 > 0 and abs(a1 - a2) / a1 < 0.05:
-                                        data.loc[pi, '_Risk_Score'] += 15
-                                        data.loc[ni, '_Risk_Score'] += 15
-                                        if 'Round-Trip' not in flags[pi]:
-                                            flags[pi].append('Round-Trip')
-                                        if 'Round-Trip' not in flags[ni]:
-                                            flags[ni].append('Round-Trip')
-                            except Exception:
-                                pass
-            except Exception:
-                pass
+            # Group transactions by vendor
+            temp = data[data['_Norm_Vendor'] != ''].copy()
+            raw_amt = data[self.amount_col]
+            
+            for vendor, grp in temp.groupby('_Norm_Vendor'):
+                if len(grp) < 2: continue
+                
+                # Sort by date for windowing
+                vgrp = grp.sort_values('_Parsed_Date')
+                # Sliding window: find pos/neg pairs within 7 days
+                pos_idx = vgrp[raw_amt > 0].index
+                neg_idx = vgrp[raw_amt < 0].index
+                
+                if len(pos_idx) > 0 and len(neg_idx) > 0:
+                    for p_idx in pos_idx:
+                        p_date = dates.loc[p_idx]
+                        p_val = abs(raw_amt.loc[p_idx])
+                        # Find negative transactions within 7 days
+                        mask = (dates.loc[neg_idx] >= p_date - pd.Timedelta(days=7)) & \
+                               (dates.loc[neg_idx] <= p_date + pd.Timedelta(days=7))
+                        candidates = neg_idx[mask]
+                        for c_idx in candidates:
+                            c_val = abs(raw_amt.loc[c_idx])
+                            if p_val > 0 and abs(p_val - c_val) / p_val < 0.05:
+                                data.loc[[p_idx, c_idx], '_Risk_Score'] += 15
+                                for idx in [p_idx, c_idx]:
+                                    if 'Round-Trip' not in flags_dict[idx]:
+                                        flags_dict[idx].append('Round-Trip')
 
         # Compile flags and categories
-        data['_Risk_Flags'] = ['; '.join(f) if f else 'None' for f in flags]
+        data['_Risk_Flags'] = ['; '.join(flags_dict[idx]) if flags_dict[idx] else 'None' for idx in data.index]
         data['_Risk_Score'] = data['_Risk_Score'].clip(lower=0)
         data.loc[data['_Risk_Score'] >= 30, '_Risk_Category'] = 'High'
         data.loc[(data['_Risk_Score'] >= 15) & (data['_Risk_Score'] < 30), '_Risk_Category'] = 'Medium'
-        data['_Risk_Category'] = data.get('_Risk_Category', pd.Series('Low', index=data.index))
-        data['_Risk_Category'] = data['_Risk_Category'].fillna('Low')
+        data['_Risk_Category'] = data.get('_Risk_Category', pd.Series('Low', index=data.index)).fillna('Low')
 
         return data
 
@@ -521,99 +522,96 @@ class AuditAnalyzer:
     def _sample_by_count(self, scored: pd.DataFrame,
                          sample_pct: float, tod_pct: float
                          ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Select N% of total transaction count with unique vendors."""
-        import math
+        """
+        SMART OVERLAP COUNT MODE:
+        1. Prioritize unique vendors across TOD and TOC.
+        2. If target size not met, backfill with repeats (unique transactions).
+        """
         total_rows = len(scored)
-        total_samples = math.ceil(total_rows * sample_pct / 100.0)
-        tod_size = math.ceil(total_samples * tod_pct / 100.0)
-        toc_size = total_samples - tod_size
+        target_total = math.ceil(total_rows * sample_pct / 100.0)
+        tod_size = math.ceil(target_total * tod_pct / 100.0)
+        toc_size = target_total - tod_size
 
-        print(f"    [COUNT] total_rows={total_rows} target_samples={total_samples} tod_size={tod_size} toc_size={toc_size}")
-
-        # TOD: Highest value, allows duplicate vendors to fill target
-        sort_cols = ['_Risk_Score']
-        if self.amount_col:
-            sort_cols = [self.amount_col, '_Risk_Score']
-        sorted_scored = scored.sort_values(by=sort_cols, ascending=False)
-        tod = self._unique_vendor_select(sorted_scored, tod_size, strategy='highest',
-                                          strict_unique=False)
-        tod_indices = set(tod.index.tolist())
-
-        print(f"    [COUNT] TOD selected: {len(tod)} rows")
-
-        # ── ZERO PARTY OVERLAP: Use _Norm_Vendor for forensic entity matching ──
-        tod_vendors = set()
-        norm_col = '_Norm_Vendor' if '_Norm_Vendor' in tod.columns else self.vendor_col
-        if norm_col and norm_col in tod.columns:
-            for v in tod[norm_col].dropna().astype(str):
-                v_clean = v.strip().lower()
-                if v_clean and v_clean != 'nan':
-                    tod_vendors.add(v_clean)
-        print(f"    [COUNT] TOD normalized vendors to exclude from TOC: {len(tod_vendors)}")
-
-        # TOC: Random from rows NOT in TOD AND whose normalized vendor is NOT in TOD
-        remaining = scored[~scored.index.isin(tod_indices)]
-        if norm_col and norm_col in remaining.columns and tod_vendors:
-            remaining = remaining[~remaining[norm_col].astype(str).str.strip().str.lower().isin(tod_vendors)]
-        print(f"    [COUNT] Remaining pool for TOC (after party exclusion): {len(remaining)} rows")
-
-        if len(remaining) > 0 and toc_size > 0:
-            toc = self._unique_vendor_select(remaining, toc_size, strategy='random',
-                                              strict_unique=True)
-        else:
-            toc = pd.DataFrame(columns=scored.columns)
-
-        print(f"    [COUNT] TOC selected: {len(toc)} rows")
-
-        # ── COVERAGE GUARANTEE: If combined < target, backfill from unused rows ──
-        combined = len(tod) + len(toc)
-        if combined < total_samples:
-            shortfall = total_samples - combined
-            all_selected_indices = set(tod.index.tolist()) | set(toc.index.tolist())
-            leftover = scored[~scored.index.isin(all_selected_indices)]
-            
-            # Also collect TOC vendors to exclude from backfill
-            toc_vendors = set()
-            if norm_col and norm_col in toc.columns:
-                for v in toc[norm_col].dropna().astype(str):
-                    v_clean = v.strip().lower()
-                    if v_clean and v_clean != 'nan':
-                        toc_vendors.add(v_clean)
-            all_used_vendors = tod_vendors | toc_vendors
-            
-            # Strict Exclusion: exclude ALL vendors already in TOD or TOC
-            if norm_col and norm_col in leftover.columns and all_used_vendors:
-                leftover = leftover[~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used_vendors)]
-                
-            if len(leftover) > 0:
-                extra = leftover.sample(n=min(shortfall, len(leftover)), random_state=42)
-                toc = pd.concat([toc, extra])
-                print(f"    [COUNT] BACKFILL: Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
-
-        print(f"    [COUNT] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} / {total_rows} = {(len(tod)+len(toc))/total_rows*100:.1f}%")
-
-        # Add procedure labels
-        tod = tod.copy()
-        toc = toc.copy()
+        # Use forensic normalized vendor if available
+        vcol = '_Norm_Vendor' if '_Norm_Vendor' in scored.columns else self.vendor_col
         
+        # --- Stage 1: Unique Vendor Selection ---
+        if vcol and vcol in scored.columns:
+            # Best txn per vendor
+            vendor_pool = scored.sort_values(by=['_Risk_Score'], ascending=False).groupby(vcol).head(1)
+            # Exclude empty / NaN vendor entries properly
+            vendor_norm = vendor_pool[vcol].astype(str).str.strip().str.lower()
+            vendor_pool = vendor_pool[~vendor_norm.isin(['', 'nan', 'none'])]
+            
+            # Split this pool 70/30
+            pool_tod = vendor_pool.head(tod_size).copy()
+            pool_toc = vendor_pool.iloc[tod_size:tod_size+toc_size].copy()
+            
+            used_indices = set(pool_tod.index) | set(pool_toc.index)
+        else:
+            pool_tod = scored.head(0).copy()
+            pool_toc = scored.head(0).copy()
+            used_indices = set()
+
+        # --- Stage 2: Backfill (Safety Valve) ---
+        shortfall_tod = tod_size - len(pool_tod)
+        shortfall_toc = toc_size - len(pool_toc)
+        
+        remaining = scored[~scored.index.isin(used_indices)].sort_values(by='_Risk_Score', ascending=False)
+        
+        if shortfall_tod > 0 and len(remaining) > 0:
+            extra_tod = remaining.head(shortfall_tod)
+            pool_tod = pd.concat([pool_tod, extra_tod])
+            used_indices.update(extra_tod.index)
+            remaining = scored[~scored.index.isin(used_indices)].sort_values(by='_Risk_Score', ascending=False)
+            print(f"    [COUNT] TOD Backfill: {len(extra_tod)} rows")
+
+        if shortfall_toc > 0 and len(remaining) > 0:
+            extra_toc = remaining.head(shortfall_toc)
+            pool_toc = pd.concat([pool_toc, extra_toc])
+            print(f"    [COUNT] TOC Backfill: {len(extra_toc)} rows")
+
+        tod = pool_tod.copy()
+        toc = pool_toc.copy()
+
+        # Labels
         tod['_Audit_Procedure'] = 'Test of Details (TOD)'
-        tod['_Selection_Rationale'] = tod.apply(
-            lambda r: self._tod_rationale(r), axis=1)
+        tod['_Selection_Rationale'] = tod.apply(lambda r: self._tod_rationale(r), axis=1)
         tod['_Audit_Remarks'] = ''
         tod['_Supporting_Doc_Status'] = 'Pending'
 
         toc['_Audit_Procedure'] = 'Test of Controls (TOC)'
-        toc['_Selection_Rationale'] = 'Random Basis Selection (Zero Overlap with TOD pool)'
+        toc['_Control_Objective'] = self._control_objective()
+        toc['_Selection_Rationale'] = 'Smart Selection (Prioritized Vendor Diversity)'
+        toc['_Control_Testing_Remarks'] = ''
+        toc['_Supporting_Doc_Status'] = 'Pending'
+
+        # Cleanup internal columns
+        risk_cols = [c for c in tod.columns if c.startswith('_Risk_')]
+        tod = tod.drop(columns=risk_cols, errors='ignore')
+        toc = toc.drop(columns=risk_cols, errors='ignore')
+
+        return tod, toc
+
+    def _sample_by_count_generic(self, scored: pd.DataFrame, sample_pct: float, tod_pct: float):
+        total_samples = math.ceil(len(scored) * sample_pct / 100.0)
+        tod_size = math.ceil(total_samples * tod_pct / 100.0)
+        tod = scored.head(tod_size).copy()
+        toc = scored.iloc[tod_size:total_samples].copy()
+
+        # Add procedure labels
+        tod['_Audit_Procedure'] = 'Test of Details (TOD)'
+        tod['_Selection_Rationale'] = tod.apply(lambda r: self._tod_rationale(r), axis=1)
+        tod['_Audit_Remarks'] = ''
+        tod['_Supporting_Doc_Status'] = 'Pending'
+
+        toc['_Audit_Procedure'] = 'Test of Controls (TOC)'
+        toc['_Selection_Rationale'] = 'Generic Random Selection'
         toc['_Control_Objective'] = self._control_objective()
         toc['_Control_Testing_Remarks'] = ''
         toc['_Supporting_Doc_Status'] = 'Pending'
 
-        # Sort TOD by amount descending
-        if self.amount_col:
-            tod = tod.sort_values(by=self.amount_col, ascending=False,
-                                  key=lambda x: x.abs())
-
-        # Remove internal risk columns from output
+        # Cleanup internal columns
         risk_cols = [c for c in tod.columns if c.startswith('_Risk_')]
         tod = tod.drop(columns=risk_cols, errors='ignore')
         toc = toc.drop(columns=risk_cols, errors='ignore')
@@ -712,37 +710,56 @@ class AuditAnalyzer:
 
         print(f"    [VALUE] TOC: {len(toc)} rows, cumval={toc_cumval:.2f}")
 
-        # ── COVERAGE GUARANTEE: If combined value < target, backfill (Strict Unique Party) ──
+        # ── COVERAGE GUARANTEE: Multi-stage backfill ──
         combined_value = tod_cumval + toc_cumval
         if combined_value < target_value:
             all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
             leftover = sorted_data[~sorted_data.index.isin(all_selected)]
             
-            # Collect TOC vendors too
-            toc_vendors_set = set()
-            if norm_col and norm_col in toc.columns:
-                for v in toc[norm_col].dropna().astype(str):
-                    v_clean = v.strip().lower()
-                    if v_clean and v_clean != 'nan':
-                        toc_vendors_set.add(v_clean)
-            all_used = tod_vendors | toc_vendors_set
-            
-            # Strict Exclusion: exclude ALL vendors already in TOD or TOC
-            if norm_col and norm_col in leftover.columns and all_used:
-                leftover = leftover[~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used)]
+            if len(leftover) > 0:
+                # Stage 1: Try strict unique party backfill
+                toc_vendors_set = set()
+                if norm_col and norm_col in toc.columns:
+                    for v in toc[norm_col].dropna().astype(str):
+                        v_clean = v.strip().lower()
+                        if v_clean and v_clean != 'nan':
+                            toc_vendors_set.add(v_clean)
+                all_used = tod_vendors | toc_vendors_set
                 
-            # Sort leftover by value desc so we fill the gap fastest
-            leftover = leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
-            extra_rows = []
-            for idx, row in leftover.iterrows():
-                extra_rows.append(idx)
-                combined_value += abs(row[self.amount_col])
-                if combined_value >= target_value:
-                    break
-            if extra_rows:
-                extra = sorted_data.loc[extra_rows].copy()
-                toc = pd.concat([toc, extra])
-                print(f"    [VALUE] BACKFILL: Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
+                strict_leftover = leftover
+                if norm_col and norm_col in leftover.columns and all_used:
+                    strict_leftover = leftover[~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used)]
+                
+                # Sort leftover by value desc so we fill the gap fastest
+                strict_leftover = strict_leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
+                
+                extra_rows = []
+                for idx, row in strict_leftover.iterrows():
+                    extra_rows.append(idx)
+                    combined_value += abs(row[self.amount_col])
+                    if combined_value >= target_value:
+                        break
+                if extra_rows:
+                    extra = sorted_data.loc[extra_rows].copy()
+                    toc = pd.concat([toc, extra])
+                    print(f"    [VALUE] BACKFILL (Stage 1): Added {len(extra)} extra rows to TOC (Strict Party Exclusion)")
+
+                # Stage 2: If still short on value, allow vendor overlap
+                if combined_value < target_value:
+                    all_selected = set(tod.index.tolist()) | set(toc.index.tolist())
+                    leftover = sorted_data[~sorted_data.index.isin(all_selected)]
+                    leftover = leftover.sort_values(by=self.amount_col, ascending=False, key=lambda x: x.abs())
+                    
+                    extra_rows = []
+                    for idx, row in leftover.iterrows():
+                        extra_rows.append(idx)
+                        combined_value += abs(row[self.amount_col])
+                        if combined_value >= target_value:
+                            break
+                    if extra_rows:
+                        extra = sorted_data.loc[extra_rows].copy()
+                        toc = pd.concat([toc, extra])
+                        print(f"    [VALUE] BACKFILL (Stage 2): Added {len(extra)} extra rows to TOC (Relaxed Overlap)")
 
         print(f"    [VALUE] FINAL: TOD={len(tod)} + TOC={len(toc)} = {len(tod)+len(toc)} rows")
 
@@ -792,7 +809,7 @@ class AuditAnalyzer:
                 if '_month' in data.columns:
                     data.drop(columns=['_month'], inplace=True, errors='ignore')
                 return result
-            except:
+            except Exception:
                 pass
         # Plain random fallback
         return data.sample(n=min(n, len(data)), random_state=42)
@@ -846,10 +863,11 @@ class AuditAnalyzer:
 
         if self.date_col:
             try:
-                dates = pd.to_datetime(scored[self.date_col], errors='coerce', dayfirst=True, format='mixed')
+                # Reuse cached parsed dates instead of re-parsing
+                dates = scored['_Parsed_Date']
                 analysis['weekend_posting_count'] = int(dates.dt.dayofweek.isin([5, 6]).sum())
                 analysis['month_end_posting_count'] = int((dates.dt.day >= 28).sum())
-            except:
+            except Exception:
                 pass
 
         if self.narration_col:

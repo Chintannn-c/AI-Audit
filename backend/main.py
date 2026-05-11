@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 import pandas as pd
 import io
 import os
@@ -181,7 +182,7 @@ async def setup_materiality(
     romm: str = Form(...),
     perf_pct: float = Form(75.0),
     trivial_pct: float = Form(3.0),
-    overall_pct: float = Form(None)
+    overall_pct: Optional[float] = Form(None)
 ):
     try:
         calc = MaterialityCalculator(npbt, romm)

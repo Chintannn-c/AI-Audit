@@ -37,15 +37,27 @@ class AuditAIEngine:
 
     def __init__(self):
         self.gemini_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_key_2 = os.getenv("GEMINI_API_KEY_2")
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
 
+        # Primary Gemini client
         self.gemini_client = None
         if self.gemini_key:
             try:
                 self.gemini_client = genai.Client(api_key=self.gemini_key)
+                print("[AI] Gemini Key 1 initialized.")
             except Exception as e:
-                print(f"[AI] Gemini init failed: {e}")
+                print(f"[AI] Gemini Key 1 init failed: {e}")
+
+        # Secondary Gemini client (for rate-limit failover)
+        self.gemini_client_2 = None
+        if self.gemini_key_2:
+            try:
+                self.gemini_client_2 = genai.Client(api_key=self.gemini_key_2)
+                print("[AI] Gemini Key 2 initialized.")
+            except Exception as e:
+                print(f"[AI] Gemini Key 2 init failed: {e}")
 
         self.groq_client = None
         if self.groq_key:
@@ -208,13 +220,31 @@ class AuditAIEngine:
     # ──────────────────────────────────────────────
 
     def _try_gemini(self, prompt: str, file_bytes=None, mime_type=None) -> Optional[dict]:
-        """Try Gemini with retries and exponential backoff."""
+        """
+        Try Gemini with dual-key rotation and exponential backoff.
+        - Even attempts (0, 2, ...) use Key 1 (gemini_client).
+        - Odd attempts  (1, 3, ...) use Key 2 (gemini_client_2).
+        - On a rate-limit error the loop continues immediately to the next attempt,
+          which automatically switches keys — doubling effective quota.
+        """
+        clients = []
+        if self.gemini_client:
+            clients.append(("Key 1", self.gemini_client))
+        if self.gemini_client_2:
+            clients.append(("Key 2", self.gemini_client_2))
+
+        if not clients:
+            print("[AI] No Gemini clients available.")
+            return None
+
         for attempt in range(self.MAX_RETRIES):
+            # Pick key by round-robin
+            key_label, client = clients[attempt % len(clients)]
             try:
-                print(f"[AI] Trying Gemini (attempt {attempt + 1})...")
+                print(f"[AI] Trying Gemini {key_label} (attempt {attempt + 1}/{self.MAX_RETRIES})...")
                 if file_bytes and mime_type:
                     from google.genai import types
-                    resp = self.gemini_client.models.generate_content(
+                    resp = client.models.generate_content(
                         model="gemini-2.0-flash",
                         contents=[
                             types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
@@ -223,22 +253,33 @@ class AuditAIEngine:
                         config={'response_mime_type': 'application/json'}
                     )
                 else:
-                    resp = self.gemini_client.models.generate_content(
+                    resp = client.models.generate_content(
                         model="gemini-2.0-flash",
                         contents=prompt,
                         config={'response_mime_type': 'application/json'}
                     )
                 if resp and resp.text:
-                    return self._clean_json(resp.text)
+                    result = self._clean_json(resp.text)
+                    if result is not None:
+                        print(f"[AI] Gemini {key_label} succeeded.")
+                        return result
+                    print(f"[AI] Gemini {key_label} returned unparseable JSON, retrying...")
             except Exception as e:
                 err_str = str(e).lower()
-                if '429' in err_str or 'rate' in err_str or '500' in err_str:
-                    wait = self.BACKOFF_BASE * (2 ** attempt)
-                    print(f"[AI] Gemini rate-limited/error. Backoff {wait:.1f}s...")
-                    time.sleep(wait)
+                if '429' in err_str or 'quota' in err_str or 'rate' in err_str or '500' in err_str:
+                    # Switch to the other key on next attempt — no sleep needed if 2 keys available
+                    if len(clients) > 1:
+                        next_label = clients[(attempt + 1) % len(clients)][0]
+                        print(f"[AI] Gemini {key_label} rate-limited. Switching to {next_label}...")
+                    else:
+                        wait = self.BACKOFF_BASE * (2 ** attempt)
+                        print(f"[AI] Gemini rate-limited (only 1 key). Backoff {wait:.1f}s...")
+                        time.sleep(wait)
                     continue
-                print(f"[AI] Gemini failed: {e}")
+                print(f"[AI] Gemini {key_label} failed (non-retryable): {e}")
                 break
+
+        print("[AI] All Gemini attempts exhausted.")
         return None
 
     def _try_groq(self, prompt: str) -> Optional[dict]:

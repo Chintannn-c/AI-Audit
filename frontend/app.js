@@ -537,7 +537,9 @@ async function runAnalysis() {
         document.getElementById('resTodCount').textContent = data.tod_count.toLocaleString();
         document.getElementById('resTocCount').textContent = data.toc_count.toLocaleString();
         document.getElementById('resTotalSelected').textContent = data.total_selected.toLocaleString();
-        const coverage = ((data.total_selected / data.stats.count) * 100).toFixed(1);
+        const coverage = data.stats.count > 0
+            ? ((data.total_selected / data.stats.count) * 100).toFixed(1)
+            : '0.0';
         document.getElementById('resCoverage').textContent = `${coverage}%`;
 
         // Sync to Reports section
@@ -549,18 +551,20 @@ async function runAnalysis() {
         const rptCov = document.getElementById('rptCoverage');
         if (rptCov) rptCov.textContent = `${coverage}%`;
 
-        // Render AI Insights
+        // Render AI Insights (null-safe)
+        const insightFocus = (data.ai_insights && data.ai_insights.focus) ? data.ai_insights.focus : 'AI Analysis';
+        const insightSummary = (data.ai_insights && data.ai_insights.summary) ? data.ai_insights.summary : 'Analysis complete. Please review transactions manually.';
         document.getElementById('aiInsightText').innerHTML = `
-            <strong>${data.ai_insights.focus}</strong><br>
-            ${data.ai_insights.summary}
+            <strong>${insightFocus}</strong><br>
+            ${insightSummary}
         `;
         
         // Populate Reports Section AI Output
         const aiOutput = document.getElementById('aiOutput');
         if (aiOutput) {
             aiOutput.innerHTML = `
-                <div style="margin-bottom:8px;"><strong>${data.ai_insights.focus}</strong></div>
-                <div>${data.ai_insights.summary}</div>
+                <div style="margin-bottom:8px;"><strong>${insightFocus}</strong></div>
+                <div>${insightSummary}</div>
             `;
         }
         

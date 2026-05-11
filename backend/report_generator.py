@@ -266,12 +266,21 @@ class AuditReportGenerator:
 
         tod_value = 0
         toc_value = 0
-        amt_cols = [c for c in self.tod.columns if 'amount' in str(c).lower()
-                    or c == self.sampling_config.get('amount_col', '')]
+        # Detect amount column — try exact config match first, then keywords
+        amt_col_exact = self.sampling_config.get('amount_col', '')
+        amt_cols = []
+        if amt_col_exact and amt_col_exact in self.tod.columns:
+            amt_cols = [amt_col_exact]
+        if not amt_cols:
+            # Broaden search: credit/debit used by Sales/Purchases ledgers
+            amt_cols = [c for c in self.tod.columns
+                        if any(kw in str(c).lower()
+                               for kw in ['credit', 'debit', 'amount', 'value', 'total'])]
         if amt_cols:
             ac = amt_cols[0]
             tod_value = float(self.tod[ac].abs().sum()) if len(self.tod) > 0 else 0
             toc_value = float(self.toc[ac].abs().sum()) if len(self.toc) > 0 else 0
+
 
         results = [
             ('Test of Details (TOD)', len(self.tod), tod_value),
