@@ -128,6 +128,24 @@ function navigateTo(sectionId) {
         }
     });
 
+    // Update Tab Active State & Visibility
+    const tabContainer = document.querySelector('.tab-container');
+    const auditSections = ['materiality-section', 'risk-section', 'sampling-section'];
+    
+    if (tabContainer) {
+        if (auditSections.includes(sectionId)) {
+            tabContainer.classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (sectionId === 'materiality-section' && btn.id === 'tab-planning') btn.classList.add('active');
+                if (sectionId === 'risk-section' && btn.id === 'tab-analysis') btn.classList.add('active');
+                if (sectionId === 'sampling-section' && btn.id === 'tab-sampling') btn.classList.add('active');
+            });
+        } else {
+            tabContainer.classList.add('hidden');
+        }
+    }
+
     // Update Progress Bar
     const stages = ['materiality-section', 'risk-section', 'sampling-section', 'vouching-section'];
     const currentIdx = stages.indexOf(sectionId);

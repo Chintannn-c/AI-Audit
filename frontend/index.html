@@ -66,6 +66,18 @@
         <!-- MAIN -->
         <main class="main-wrapper">
             <div class="content-area">
+                <!-- Tab Navigation -->
+                <div class="tab-container mb-24 hidden">
+                    <button class="tab-btn active" id="tab-planning" onclick="navigateTo('materiality-section')">
+                        <i data-lucide="calculator"></i> 1. Planning
+                    </button>
+                    <button class="tab-btn" id="tab-analysis" onclick="navigateTo('risk-section')">
+                        <i data-lucide="shield-check"></i> 2. Risk
+                    </button>
+                    <button class="tab-btn" id="tab-sampling" onclick="navigateTo('sampling-section')">
+                        <i data-lucide="layers"></i> 3. Sampling
+                    </button>
+                </div>
 
                 <!-- MATERIALITY -->
                 <section id="materiality-section" class="content-section hidden">
