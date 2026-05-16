@@ -540,16 +540,28 @@ async function runDownload() {
 
     try {
         const res = await fetch('/api/download', { method: 'POST', body: fd });
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || `Server responded with ${res.status}`);
+        }
+
         const blob = await res.blob();
+        if (blob.size < 100) { // Safety check for empty/corrupt files
+             throw new Error("Generated report is empty. Check ledger data.");
+        }
+
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Audit_Working_Papers_${selectedCategory}_${targetCount}_samples.xlsx`;
+        const filename = `StatAudit_Working_Papers_${selectedCategory}_${targetCount}.xlsx`.replace(/\s+/g, '_');
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
     } catch (err) {
-        console.error(err);
+        console.error("Download Failed:", err);
         alert('Download Error: ' + err.message);
     }
 }

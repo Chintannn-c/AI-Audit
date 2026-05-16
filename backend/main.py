@@ -18,6 +18,7 @@ import json
 import traceback
 import numpy as np
 import gridfs
+import re
 from datetime import datetime, timezone
 from pymongo import MongoClient
 
@@ -382,14 +383,20 @@ async def download_report(
             context.get("risk", {})
         )
         output = report.generate(vouching_results=vouching_results, report_type='sampling')
-
-        # Store generated Working Paper in GridFS
+        output.seek(0)
+        
+        # GridFS Storage
         wp_file_id = None
         if fs is not None:
-            output.seek(0)
-            wp_filename = f"Audit_Working_Papers_{category}_{sample_pct}pct.xlsx"
-            wp_file_id = fs.put(output.read(), filename=wp_filename, metadata={"session_id": session_id, "type": "generated_report"})
-            output.seek(0) # Reset stream pointer for the StreamingResponse
+            try:
+                wp_filename = f"Audit_Working_Papers_{category}_{int(sample_pct)}pct.xlsx".replace(" ", "_")
+                wp_file_id = fs.put(output.read(), filename=wp_filename, metadata={"session_id": session_id, "type": "generated_report"})
+                output.seek(0) # Reset after read
+            except Exception as e:
+                print(f"!!! GridFS Error during report save: {e}")
+
+        clean_category = re.sub(r'[^a-zA-Z0-9]', '_', category)
+        final_filename = f"StatAudit_Working_Papers_{clean_category}_{int(sample_pct)}pct.xlsx"
 
         log_audit_action(session_id, "DOWNLOAD_REPORT", {
             "category": category, "file": file.filename,
@@ -399,8 +406,7 @@ async def download_report(
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition":
-                      f"attachment; filename=Audit_Working_Papers_{category}_{int(sample_pct)}pct.xlsx"}
+            headers={"Content-Disposition": f'attachment; filename="{final_filename}"'}
         )
     except Exception as e:
         traceback.print_exc()
