@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import re
 import math
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 from datetime import datetime
 from collections import Counter
 
@@ -285,152 +285,114 @@ class AuditAnalyzer:
             "average": float(amounts.mean()) if not amounts.empty else 0,
         }
 
+
     # ──────────────────────────────────────────────
-    # RISK SCORING (10 Indicators)
+    # STRATIFIED MONTH-WISE SAMPLING (NEW CORE)
     # ──────────────────────────────────────────────
 
-    def score_risks(self) -> pd.DataFrame:
-        """Score every transaction across 10 risk indicators."""
-        data = self.df.copy()
-        data['_Risk_Score'] = 0
-        data['_Risk_Flags'] = ''
-
-        if not self.amount_col:
-            data['_Risk_Category'] = 'Low'
-            return data
-
-        amt = data[self.amount_col].abs()
-        avg = amt.mean()
-        std = amt.std() if not pd.isna(amt.std()) else 0
-        dates = data['_Parsed_Date']
-
-        # Use dictionary for flags to avoid index misalignment issues
-        flags_dict = {idx: [] for idx in data.index}
-
-        # 1. High Value (above mean + 2σ)
-        threshold = avg + 2 * std
-        hv_mask = amt > threshold
-        data.loc[hv_mask, '_Risk_Score'] += 15
-        for idx in hv_mask[hv_mask].index:
-            flags_dict[idx].append('High Value')
-
-        # 2. Above Performance Materiality
-        if self.performance_materiality > 0:
-            mat_mask = amt >= self.performance_materiality
-            data.loc[mat_mask, '_Risk_Score'] += 20
-            for idx in mat_mask[mat_mask].index:
-                flags_dict[idx].append('Above Materiality')
-
-        # 3. Duplicate Amounts
-        dup_mask = amt.duplicated(keep=False) & (amt > 0)
-        data.loc[dup_mask, '_Risk_Score'] += 10
-        for idx in dup_mask[dup_mask].index:
-            flags_dict[idx].append('Duplicate Amount')
-
-        # 4. Round Values (Configurable) — only flag non-zero amounts
-        round_mask = (amt > 0) & (amt.apply(lambda x: any(x % rv == 0 for rv in self.round_values)))
-        data.loc[round_mask, '_Risk_Score'] += 5
-        for idx in round_mask[round_mask].index:
-            flags_dict[idx].append('Round Value')
-
-        # 5. Month-end Postings (last 3 days of month)
-        if self.date_col:
-            month_end = dates.dt.is_month_end | (dates.dt.day >= 28)
-            data.loc[month_end, '_Risk_Score'] += 5
-            for idx in month_end[month_end].index:
-                flags_dict[idx].append('Month-End')
-
-        # 6. Weekend Postings
-        if self.date_col:
-            weekend = dates.dt.dayofweek.isin([5, 6])
-            data.loc[weekend, '_Risk_Score'] += 10
-            for idx in weekend[weekend].index:
-                flags_dict[idx].append('Weekend Posting')
-
-        # 7. Suspicious Narration
-        if self.narration_col:
-            suspicious_keywords = ['cash', 'adjustment', 'write off', 'write-off',
-                                   'reversal', 'correction', 'void', 'cancel',
-                                   'refund', 'suspense', 'miscellaneous', 'illegal']
-            narr = data[self.narration_col].astype(str).str.lower()
-            for kw in suspicious_keywords:
-                sus_mask = narr.str.contains(kw, na=False)
-                data.loc[sus_mask, '_Risk_Score'] += 8
-                for idx in sus_mask[sus_mask].index:
-                    if 'Suspicious Narration' not in flags_dict[idx]:
-                        flags_dict[idx].append('Suspicious Narration')
-
-        # 8. Unusual Spikes (>3x average)
-        spike = amt > (3 * avg)
-        spike_only = spike & ~hv_mask
-        data.loc[spike_only, '_Risk_Score'] += 12
-        for idx in spike_only[spike_only].index:
-            flags_dict[idx].append('Unusual Spike')
-
-        # 9. Zero or Negative Values
-        zero_neg = data[self.amount_col] <= 0
-        data.loc[zero_neg, '_Risk_Score'] += 5
-        for idx in zero_neg[zero_neg].index:
-            flags_dict[idx].append('Zero/Negative')
-
-        # 10. Below Trivial Threshold
-        if self.trivial_threshold > 0:
-            trivial = amt <= self.trivial_threshold
-            data.loc[trivial, '_Risk_Score'] -= 10
-            for idx in trivial[trivial].index:
-                flags_dict[idx].append('Below Trivial')
-
-        # 11. FORENSIC: Split Transaction Detection (Optimized)
-        if '_Norm_Vendor' in data.columns and self.date_col:
-            temp = data[data['_Norm_Vendor'] != ''].copy()
-            temp['_Date_Only'] = dates.dt.date
-            # Group by Vendor and Day
-            grouped = temp.groupby(['_Norm_Vendor', '_Date_Only'])
-            for (vendor, day), grp in grouped:
-                if len(grp) >= 3 and amt.loc[grp.index].mean() < avg:
-                    data.loc[grp.index, '_Risk_Score'] += 18
-                    for idx in grp.index:
-                        flags_dict[idx].append('Split Transaction')
-
-        # 12. FORENSIC: Round-Tripping Pattern (O(N) Optimized)
-        if '_Norm_Vendor' in data.columns and self.date_col:
-            # Group transactions by vendor
-            temp = data[data['_Norm_Vendor'] != ''].copy()
-            raw_amt = data[self.amount_col]
+    def _sample_stratified(self, scored: pd.DataFrame, 
+                           tod_target: int, 
+                           toc_target: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Implementation of 3-4 professional audit requirements:
+        1. All months covered (at least 1 sample per month if exists).
+        2. TOD: Highest value basis.
+        3. TOC: Random basis.
+        4. No party (vendor) repeated across any sheet.
+        """
+        data = scored.copy()
+        
+        # Ensure we have month info
+        if '_Parsed_Date' not in data.columns:
+            self._cache_dates()
+            data['_Parsed_Date'] = self.df['_Parsed_Date']
             
-            for vendor, grp in temp.groupby('_Norm_Vendor'):
-                if len(grp) < 2: continue
-                
-                # Sort by date for windowing
-                vgrp = grp.sort_values('_Parsed_Date')
-                # Sliding window: find pos/neg pairs within 7 days
-                pos_idx = vgrp[vgrp[self.amount_col] > 0].index
-                neg_idx = vgrp[vgrp[self.amount_col] < 0].index
-                
-                if len(pos_idx) > 0 and len(neg_idx) > 0:
-                    for p_idx in pos_idx:
-                        p_date = dates.loc[p_idx]
-                        p_val = abs(raw_amt.loc[p_idx])
-                        # Find negative transactions within 7 days
-                        mask = (dates.loc[neg_idx] >= p_date - pd.Timedelta(days=7)) & \
-                               (dates.loc[neg_idx] <= p_date + pd.Timedelta(days=7))
-                        candidates = neg_idx[mask]
-                        for c_idx in candidates:
-                            c_val = abs(raw_amt.loc[c_idx])
-                            if p_val > 0 and abs(p_val - c_val) / p_val < 0.05:
-                                data.loc[[p_idx, c_idx], '_Risk_Score'] += 15
-                                for idx in [p_idx, c_idx]:
-                                    if 'Round-Trip' not in flags_dict[idx]:
-                                        flags_dict[idx].append('Round-Trip')
+        data['_Month'] = data['_Parsed_Date'].dt.month
+        months = sorted(data['_Month'].dropna().unique())
+        
+        vcol = '_Norm_Vendor' if '_Norm_Vendor' in data.columns else self.vendor_col
+        amt_col = self.amount_col or data.select_dtypes(include=[np.number]).columns[0]
+        
+        tod_indices = []
+        toc_indices = []
+        seen_vendors = set()
 
-        # Compile flags and categories
-        data['_Risk_Flags'] = ['; '.join(flags_dict[idx]) if flags_dict[idx] else 'None' for idx in data.index]
-        data['_Risk_Score'] = data['_Risk_Score'].clip(lower=0)
-        data.loc[data['_Risk_Score'] >= 30, '_Risk_Category'] = 'High'
-        data.loc[(data['_Risk_Score'] >= 15) & (data['_Risk_Score'] < 30), '_Risk_Category'] = 'Medium'
-        data['_Risk_Category'] = data.get('_Risk_Category', pd.Series('Low', index=data.index)).fillna('Low')
+        def is_vendor_used(row):
+            if not vcol or vcol not in row: return False
+            v = str(row[vcol]).strip().lower()
+            return v in seen_vendors if (v and v != 'nan' and v != '') else False
 
-        return data
+        def mark_vendor_used(row):
+            if not vcol or vcol not in row: return
+            v = str(row[vcol]).strip().lower()
+            if v and v != 'nan' and v != '':
+                seen_vendors.add(v)
+
+        # --- Stage 1: Mandatory Month Coverage for TOD ---
+        # Pick 1 highest value txn per month for TOD
+        for m in months:
+            if len(tod_indices) >= tod_target: break
+            
+            month_data = data[data['_Month'] == m].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+            for idx, row in month_data.iterrows():
+                if not is_vendor_used(row):
+                    tod_indices.append(idx)
+                    mark_vendor_used(row)
+                    break
+        
+        # --- Stage 2: Fill TOD to target (Highest Value overall) ---
+        if len(tod_indices) < tod_target:
+            remaining_tod = data[~data.index.isin(tod_indices)].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+            for idx, row in remaining_tod.iterrows():
+                if len(tod_indices) >= tod_target: break
+                if not is_vendor_used(row):
+                    tod_indices.append(idx)
+                    mark_vendor_used(row)
+
+        # --- Stage 3: Mandatory Month Coverage for TOC (if applicable) ---
+        if toc_target > 0:
+            for m in months:
+                if len(toc_indices) >= toc_target: break
+                
+                # Pick a random one for TOC from this month (that wasn't picked for TOD and vendor not used)
+                month_data = data[(data['_Month'] == m) & (~data.index.isin(tod_indices))].sample(frac=1, random_state=42)
+                for idx, row in month_data.iterrows():
+                    if not is_vendor_used(row):
+                        toc_indices.append(idx)
+                        mark_vendor_used(row)
+                        break
+
+        # --- Stage 4: Fill TOC to target (Random overall) ---
+        if toc_target > 0 and len(toc_indices) < toc_target:
+            remaining_toc = data[~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)].sample(frac=1, random_state=42)
+            for idx, row in remaining_toc.iterrows():
+                if len(toc_indices) >= toc_target: break
+                if not is_vendor_used(row):
+                    toc_indices.append(idx)
+                    mark_vendor_used(row)
+
+        # Prepare Final DataFrames
+        tod = data.loc[tod_indices].copy()
+        toc = data.loc[toc_indices].copy()
+
+        # Add Metadata
+        tod['_Audit_Procedure'] = 'Test of Details (TOD)'
+        tod['_Selection_Rationale'] = tod.apply(lambda r: self._tod_rationale(r), axis=1)
+        tod['_Audit_Remarks'] = ''
+        tod['_Supporting_Doc_Status'] = 'Pending'
+
+        toc['_Audit_Procedure'] = 'Test of Controls (TOC)'
+        toc['_Control_Objective'] = self._control_objective()
+        toc['_Selection_Rationale'] = 'Random Selection (Month-wise Stratified)'
+        toc['_Control_Testing_Remarks'] = ''
+        toc['_Supporting_Doc_Status'] = 'Pending'
+
+        # Cleanup internal columns
+        internal_cols = [c for c in tod.columns if c.startswith('_Risk_') or c in ['_Month']]
+        tod = tod.drop(columns=internal_cols, errors='ignore')
+        toc = toc.drop(columns=internal_cols, errors='ignore')
+
+        return tod, toc
 
     # ──────────────────────────────────────────────
     # SAMPLE GENERATION (Dual Mode)
@@ -438,15 +400,19 @@ class AuditAnalyzer:
 
     def generate_samples(self, sample_pct: float = 20.0,
                          sampling_basis: str = 'count',
-                         tod_pct: float = 70.0
+                         tod_pct: float = 70.0,
+                         target_count: Optional[int] = None,
+                         audit_type: str = 'large'
                          ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Generate TOD and TOC samples.
+        Generate TOD and TOC samples with month-wise coverage and vendor deduplication.
 
         Args:
-            sample_pct: Percentage of total to select (combined TOD+TOC)
-            sampling_basis: 'count' or 'value'
+            sample_pct: Percentage of total to select (if target_count is None)
+            sampling_basis: 'count' or 'value' (for pct mode)
             tod_pct: Percentage of total samples allocated to TOD (default 70%)
+            target_count: Absolute number of samples to select (overrides sample_pct)
+            audit_type: 'small' (TOD only) or 'large' (TOD + TOC)
 
         Returns:
             (tod_df, toc_df) — mutually exclusive DataFrames
@@ -458,10 +424,21 @@ class AuditAnalyzer:
             empty = pd.DataFrame(columns=scored.columns)
             return empty, empty
 
-        if sampling_basis == 'value':
-            return self._sample_by_value(scored, sample_pct, tod_pct)
+        # 1. Determine absolute counts for TOD and TOC
+        if target_count is not None:
+            total_needed = min(target_count, total_rows)
         else:
-            return self._sample_by_count(scored, sample_pct, tod_pct)
+            total_needed = math.ceil(total_rows * sample_pct / 100.0)
+
+        if audit_type == 'small':
+            tod_size = total_needed
+            toc_size = 0
+        else:
+            tod_size = math.ceil(total_needed * tod_pct / 100.0)
+            toc_size = total_needed - tod_size
+
+        # 2. Advanced Sampling with Month Coverage & Vendor Uniqueness
+        return self._sample_stratified(scored, tod_size, toc_size)
 
     def _unique_vendor_select(self, data: pd.DataFrame, n: int,
                               strategy: str = 'highest',
@@ -617,6 +594,148 @@ class AuditAnalyzer:
         toc = toc.drop(columns=risk_cols, errors='ignore')
 
         return tod, toc
+
+    def score_risks(self) -> pd.DataFrame:
+        """Score every transaction across 10 risk indicators."""
+        data = self.df.copy()
+        data['_Risk_Score'] = 0
+        data['_Risk_Flags'] = ''
+
+        if not self.amount_col:
+            data['_Risk_Category'] = 'Low'
+            return data
+
+        amt = data[self.amount_col].abs()
+        avg = amt.mean()
+        std = amt.std() if not pd.isna(amt.std()) else 0
+        dates = data['_Parsed_Date']
+
+        # Use dictionary for flags to avoid index misalignment issues
+        flags_dict = {idx: [] for idx in data.index}
+
+        # 1. High Value (above mean + 2σ)
+        threshold = avg + 2 * std
+        hv_mask = amt > threshold
+        data.loc[hv_mask, '_Risk_Score'] += 15
+        for idx in hv_mask[hv_mask].index:
+            flags_dict[idx].append('High Value')
+
+        # 2. Above Performance Materiality
+        if self.performance_materiality > 0:
+            mat_mask = amt >= self.performance_materiality
+            data.loc[mat_mask, '_Risk_Score'] += 20
+            for idx in mat_mask[mat_mask].index:
+                flags_dict[idx].append('Above Materiality')
+
+        # 3. Duplicate Amounts
+        dup_mask = amt.duplicated(keep=False) & (amt > 0)
+        data.loc[dup_mask, '_Risk_Score'] += 10
+        for idx in dup_mask[dup_mask].index:
+            flags_dict[idx].append('Duplicate Amount')
+
+        # 4. Round Values (Configurable) — only flag non-zero amounts
+        round_mask = (amt > 0) & (amt.apply(lambda x: any(x % rv == 0 for rv in self.round_values)))
+        data.loc[round_mask, '_Risk_Score'] += 5
+        for idx in round_mask[round_mask].index:
+            flags_dict[idx].append('Round Value')
+
+        # 5. Month-end Postings (last 3 days of month)
+        if self.date_col:
+            month_end = dates.dt.is_month_end | (dates.dt.day >= 28)
+            data.loc[month_end, '_Risk_Score'] += 5
+            for idx in month_end[month_end].index:
+                flags_dict[idx].append('Month-End')
+
+        # 6. Weekend Postings
+        if self.date_col:
+            weekend = dates.dt.dayofweek.isin([5, 6])
+            data.loc[weekend, '_Risk_Score'] += 10
+            for idx in weekend[weekend].index:
+                flags_dict[idx].append('Weekend Posting')
+
+        # 7. Suspicious Narration
+        if self.narration_col:
+            suspicious_keywords = ['cash', 'adjustment', 'write off', 'write-off',
+                                   'reversal', 'correction', 'void', 'cancel',
+                                   'refund', 'suspense', 'miscellaneous', 'illegal']
+            narr = data[self.narration_col].astype(str).str.lower()
+            for kw in suspicious_keywords:
+                sus_mask = narr.str.contains(kw, na=False)
+                data.loc[sus_mask, '_Risk_Score'] += 8
+                for idx in sus_mask[sus_mask].index:
+                    if 'Suspicious Narration' not in flags_dict[idx]:
+                        flags_dict[idx].append('Suspicious Narration')
+
+        # 8. Unusual Spikes (>3x average)
+        spike = amt > (3 * avg)
+        spike_only = spike & ~hv_mask
+        data.loc[spike_only, '_Risk_Score'] += 12
+        for idx in spike_only[spike_only].index:
+            flags_dict[idx].append('Unusual Spike')
+
+        # 9. Zero or Negative Values
+        zero_neg = data[self.amount_col] <= 0
+        data.loc[zero_neg, '_Risk_Score'] += 5
+        for idx in zero_neg[zero_neg].index:
+            flags_dict[idx].append('Zero/Negative')
+
+        # 10. Below Trivial Threshold
+        if self.trivial_threshold > 0:
+            trivial = amt <= self.trivial_threshold
+            data.loc[trivial, '_Risk_Score'] -= 10
+            for idx in trivial[trivial].index:
+                flags_dict[idx].append('Below Trivial')
+
+        # 11. FORENSIC: Split Transaction Detection (Optimized)
+        if '_Norm_Vendor' in data.columns and self.date_col:
+            temp = data[data['_Norm_Vendor'] != ''].copy()
+            temp['_Date_Only'] = dates.dt.date
+            # Group by Vendor and Day
+            grouped = temp.groupby(['_Norm_Vendor', '_Date_Only'])
+            for (vendor, day), grp in grouped:
+                if len(grp) >= 3 and amt.loc[grp.index].mean() < avg:
+                    data.loc[grp.index, '_Risk_Score'] += 18
+                    for idx in grp.index:
+                        flags_dict[idx].append('Split Transaction')
+
+        # 12. FORENSIC: Round-Tripping Pattern (O(N) Optimized)
+        if '_Norm_Vendor' in data.columns and self.date_col:
+            # Group transactions by vendor
+            temp = data[data['_Norm_Vendor'] != ''].copy()
+            raw_amt = data[self.amount_col]
+            
+            for vendor, grp in temp.groupby('_Norm_Vendor'):
+                if len(grp) < 2: continue
+                
+                # Sort by date for windowing
+                vgrp = grp.sort_values('_Parsed_Date')
+                # Sliding window: find pos/neg pairs within 7 days
+                pos_idx = vgrp[vgrp[self.amount_col] > 0].index
+                neg_idx = vgrp[vgrp[self.amount_col] < 0].index
+                
+                if len(pos_idx) > 0 and len(neg_idx) > 0:
+                    for p_idx in pos_idx:
+                        p_date = dates.loc[p_idx]
+                        p_val = abs(raw_amt.loc[p_idx])
+                        # Find negative transactions within 7 days
+                        mask = (dates.loc[neg_idx] >= p_date - pd.Timedelta(days=7)) & \
+                               (dates.loc[neg_idx] <= p_date + pd.Timedelta(days=7))
+                        candidates = neg_idx[mask]
+                        for c_idx in candidates:
+                            c_val = abs(raw_amt.loc[c_idx])
+                            if p_val > 0 and abs(p_val - c_val) / p_val < 0.05:
+                                data.loc[[p_idx, c_idx], '_Risk_Score'] += 15
+                                for idx in [p_idx, c_idx]:
+                                    if 'Round-Trip' not in flags_dict[idx]:
+                                        flags_dict[idx].append('Round-Trip')
+
+        # Compile flags and categories
+        data['_Risk_Flags'] = ['; '.join(flags_dict[idx]) if flags_dict[idx] else 'None' for idx in data.index]
+        data['_Risk_Score'] = data['_Risk_Score'].clip(lower=0)
+        data.loc[data['_Risk_Score'] >= 30, '_Risk_Category'] = 'High'
+        data.loc[(data['_Risk_Score'] >= 15) & (data['_Risk_Score'] < 30), '_Risk_Category'] = 'Medium'
+        data['_Risk_Category'] = data.get('_Risk_Category', pd.Series('Low', index=data.index)).fillna('Low')
+        return data
 
     def _sample_by_value(self, scored: pd.DataFrame,
                          sample_pct: float, tod_pct: float

@@ -155,11 +155,6 @@
                                 <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">Calculate statutory materiality thresholds and perform audit classification.</p>
                                 <button class="btn-primary w-full" onclick="navigateTo('materiality-section')">Start Planning Audit</button>
                             </div>
-                            <div class="glass-card" style="text-align:left; border-left:4px solid #10b981; padding:24px;">
-                                <h3 style="margin-bottom:8px; font-size:17px;">Direct Sampling Engine</h3>
-                                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px;">Upload your ledger and run AI-powered audit sampling immediately.</p>
-                                <button class="btn-primary w-full" style="background:#10b981; border-color:#10b981;" onclick="navigateTo('sampling-section')">Jump to Sampling</button>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -285,22 +280,21 @@
                         </div>
 
                         <div class="config-panel">
-                            <!-- Sample % -->
+                            <!-- Number of Samples -->
                             <div>
-                                <label class="form-label">Sample Percentage (Combined TOD + TOC)</label>
+                                <label class="form-label">Total Number of Samples</label>
                                 <div style="display:flex;align-items:center;gap:16px;">
-                                    <input type="range" id="samplePctSlider" class="range-slider" min="5" max="100" value="30" style="flex:1;">
-                                    <input type="number" id="samplePctInput" class="glass-input" value="30" min="1" max="100" style="width:80px;text-align:center;">
-                                    <span class="text-muted">%</span>
+                                    <input type="number" id="sampleCountInput" class="glass-input" value="100" min="1" style="flex:1;">
+                                    <span class="text-muted">samples</span>
                                 </div>
                             </div>
 
                             <!-- TOD/TOC Split -->
-                            <div>
+                            <div id="splitConfigRow">
                                 <label class="form-label">TOD / TOC Split Ratio</label>
                                 <div style="display:flex;align-items:center;gap:16px;">
                                     <input type="range" id="todPctSlider" class="range-slider" min="50" max="90" value="70" style="flex:1;">
-                                    <span id="todPctDisplay" style="font-weight:700;color:var(--accent-primary);min-width:100px;text-align:center;">70 / 30</span>
+                                    <span id="todPctDisplay" style="font-weight:700;color:var(--accent-primary);min-width:140px;text-align:center;">70 TOD / 30 TOC</span>
                                 </div>
                             </div>
 

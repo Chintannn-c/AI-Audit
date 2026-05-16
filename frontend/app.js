@@ -305,18 +305,21 @@ function updateLiveClassification() {
     if (rptType) { rptType.textContent = resType.textContent; rptType.style.color = resType.style.color; }
     if (rptApproach) rptApproach.textContent = resClass.textContent;
 
-    // Dynamic UI: Hide TOD split slider if TOD only
-    const todSliderRow = document.getElementById('todPctSlider')?.parentElement?.parentElement;
-    if (todSliderRow) {
-        todSliderRow.style.display = isLargeAudit ? 'block' : 'none';
+    // Dynamic UI: Toggle TOC visibility based on audit type
+    const splitConfigRow = document.getElementById('splitConfigRow');
+    if (splitConfigRow) {
+        splitConfigRow.style.display = isLargeAudit ? 'block' : 'none';
     }
 
-    // Update TOC badge
+    // Update TOC badge and sync count displays
     const tocBadge = document.getElementById('tocBadge');
     if (tocBadge) {
         tocBadge.textContent = isLargeAudit ? 'APPLICABLE' : 'NOT APPLICABLE';
         tocBadge.className = isLargeAudit ? 'badge badge-low mt-8' : 'badge badge-medium mt-8';
     }
+    
+    // Trigger update of TOD/TOC count displays
+    updateSamplingSplitDisplay();
 }
 
 // â”€â”€ Section 3: Sampling Logic â”€â”€
@@ -361,27 +364,37 @@ function initSamplingLogic() {
         downloadBtn2.addEventListener('click', runDownload);
     }
 
-    // Sync sliders
-    const samplePctSlider = document.getElementById('samplePctSlider');
-    const samplePctInput = document.getElementById('samplePctInput');
-    if (samplePctSlider && samplePctInput) {
-        samplePctSlider.addEventListener('input', () => {
-            samplePctInput.value = samplePctSlider.value;
-        });
-        samplePctInput.addEventListener('input', () => {
-            samplePctSlider.value = samplePctInput.value;
-        });
+    // Sync Count Display
+    const sampleCountInput = document.getElementById('sampleCountInput');
+    if (sampleCountInput) {
+        sampleCountInput.addEventListener('input', updateSamplingSplitDisplay);
     }
 
     const todPctSlider = document.getElementById('todPctSlider');
-    const todPctDisplay = document.getElementById('todPctDisplay');
-    if (todPctSlider && todPctDisplay) {
-        todPctSlider.addEventListener('input', () => {
-            const tod = todPctSlider.value;
-            const toc = 100 - tod;
-            todPctDisplay.textContent = `${tod} / ${toc}`;
-        });
+    if (todPctSlider) {
+        todPctSlider.addEventListener('input', updateSamplingSplitDisplay);
     }
+}
+
+function updateSamplingSplitDisplay() {
+    const totalCountInput = document.getElementById('sampleCountInput');
+    const todSlider = document.getElementById('todPctSlider');
+    const display = document.getElementById('todPctDisplay');
+    
+    if (!totalCountInput || !display) return;
+    
+    const total = parseInt(totalCountInput.value) || 0;
+    
+    if (!isLargeAudit) {
+        display.textContent = `${total} TOD / 0 TOC`;
+        return;
+    }
+    
+    const todPct = parseInt(todSlider?.value || 70);
+    const todCount = Math.ceil(total * todPct / 100);
+    const tocCount = total - todCount;
+    
+    display.textContent = `${todCount} TOD / ${tocCount} TOC`;
 }
 
 function regenerateSampling() {
@@ -495,16 +508,17 @@ function regenerateVouch() {
 async function runDownload() {
     if (!uploadedFile) return alert("Please upload a ledger file first.");
     
-    const samplePct = document.getElementById('samplePctSlider').value;
+    const targetCount = document.getElementById('sampleCountInput')?.value || 100;
     const todPct = isLargeAudit ? (document.getElementById('todPctSlider')?.value || 70) : 100;
 
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('file', uploadedFile);
     fd.append('category', typeof selectedCategory !== 'undefined' ? selectedCategory : 'Sales');
-    fd.append('sample_pct', samplePct);
+    fd.append('target_count', targetCount);
     fd.append('sampling_basis', typeof selectedBasis !== 'undefined' ? selectedBasis : 'count');
     fd.append('tod_pct', todPct);
+    fd.append('audit_type', isLargeAudit ? 'large' : 'small');
 
     try {
         const res = await fetch('/api/download', { method: 'POST', body: fd });
@@ -512,7 +526,7 @@ async function runDownload() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Audit_Working_Papers_${selectedCategory}_${samplePct}pct.xlsx`;
+        a.download = `Audit_Working_Papers_${selectedCategory}_${targetCount}_samples.xlsx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -546,14 +560,14 @@ async function runVouchingDownload() {
 async function runAnalysis() {
     if (!uploadedFile) return alert("Please upload a ledger file first.");
 
-    const samplePct = document.getElementById('samplePctSlider')?.value || 30;
+    const targetCount = document.getElementById('sampleCountInput')?.value || 100;
     const todPct = isLargeAudit ? (document.getElementById('todPctSlider')?.value || 70) : 100;
 
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('file', uploadedFile);
     fd.append('category', typeof selectedCategory !== 'undefined' ? selectedCategory : 'Sales');
-    fd.append('sample_pct', samplePct);
+    fd.append('target_count', targetCount);
     fd.append('sampling_basis', typeof selectedBasis !== 'undefined' ? selectedBasis : 'count');
     fd.append('tod_pct', todPct);
     fd.append('audit_type', isLargeAudit ? 'large' : 'small');

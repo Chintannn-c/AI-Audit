@@ -232,10 +232,12 @@ async def analyze_ledger(
     category: str = Form(...),
     sample_pct: float = Form(20.0),
     sampling_basis: str = Form('count'),
-    tod_pct: float = Form(70.0)
+    tod_pct: float = Form(70.0),
+    target_count: Optional[int] = Form(None),
+    audit_type: str = Form('large')
 ):
     try:
-        print(f"--- Analysis [{session_id}]: {file.filename} | {category} | {sample_pct}% | {sampling_basis} | TOD:{tod_pct}% ---")
+        print(f"--- Analysis [{session_id}]: {file.filename} | {category} | {target_count or sample_pct} | {sampling_basis} | Type:{audit_type} ---")
         contents = await file.read()
         
         # Store original ledger in GridFS
@@ -264,7 +266,9 @@ async def analyze_ledger(
         tod, toc = analyzer.generate_samples(
             sample_pct=sample_pct,
             sampling_basis=sampling_basis,
-            tod_pct=tod_pct
+            tod_pct=tod_pct,
+            target_count=target_count,
+            audit_type=audit_type
         )
         risk_analysis = analyzer.get_risk_analysis()
         print(f"Results: TOD={len(tod)}, TOC={len(toc)}, HighRisk={risk_analysis.get('high_risk_count', 0)}")
@@ -321,7 +325,9 @@ async def download_report(
     category: str = Form(...),
     sample_pct: float = Form(20.0),
     sampling_basis: str = Form('count'),
-    tod_pct: float = Form(70.0)
+    tod_pct: float = Form(70.0),
+    target_count: Optional[int] = Form(None),
+    audit_type: str = Form('large')
 ):
     try:
         contents = await file.read()
@@ -340,7 +346,9 @@ async def download_report(
         tod, toc = analyzer.generate_samples(
             sample_pct=sample_pct,
             sampling_basis=sampling_basis,
-            tod_pct=tod_pct
+            tod_pct=tod_pct,
+            target_count=target_count,
+            audit_type=audit_type
         )
         risk_analysis = analyzer.get_risk_analysis()
         print(f"--- Download: Loaded={len(df)} rows | AmtCol={analyzer.amount_col} | VendorCol={analyzer.vendor_col}")
