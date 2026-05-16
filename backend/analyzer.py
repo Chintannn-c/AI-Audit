@@ -294,11 +294,11 @@ class AuditAnalyzer:
                            tod_target: int, 
                            toc_target: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Implementation of 3-4 professional audit requirements:
-        1. All months covered (at least 1 sample per month if exists).
-        2. TOD: Highest value basis.
-        3. TOC: Random basis.
-        4. No party (vendor) repeated across any sheet.
+        Implementation of professional stratified random sampling:
+        1. All months covered (at least 1 sample per month).
+        2. Population divided into 3 value strata (buckets).
+        3. TOD Allocation: 60% High Value, 30% Mid, 10% Low.
+        4. Vendor deduplication enforced across all sheets.
         """
         data = scored.copy()
         
@@ -313,6 +313,13 @@ class AuditAnalyzer:
         vcol = '_Norm_Vendor' if '_Norm_Vendor' in data.columns else self.vendor_col
         amt_col = self.amount_col or data.select_dtypes(include=[np.number]).columns[0]
         
+        # --- Strata Division (Value Buckets) ---
+        data = data.sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+        n = len(data)
+        high_strata = data.iloc[:max(1, int(n * 0.1))]
+        mid_strata = data.iloc[max(1, int(n * 0.1)):max(2, int(n * 0.4))]
+        low_strata = data.iloc[max(2, int(n * 0.4)):]
+
         tod_indices = []
         toc_indices = []
         seen_vendors = set()
@@ -328,11 +335,9 @@ class AuditAnalyzer:
             if v and v != 'nan' and v != '':
                 seen_vendors.add(v)
 
-        # --- Stage 1: Mandatory Month Coverage for TOD ---
-        # Pick 1 highest value txn per month for TOD
+        # --- Stage 1: Mandatory Month Coverage (TOD) ---
         for m in months:
             if len(tod_indices) >= tod_target: break
-            
             month_data = data[data['_Month'] == m].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
             for idx, row in month_data.iterrows():
                 if not is_vendor_used(row):
@@ -340,10 +345,31 @@ class AuditAnalyzer:
                     mark_vendor_used(row)
                     break
         
-        # --- Stage 2: Fill TOD to target (Highest Value overall) ---
+        # --- Stage 2: Stratified Filling for TOD ---
+        # Allocation: 60% High, 30% Mid, 10% Low
+        strata_map = [
+            (high_strata, 0.60),
+            (mid_strata, 0.30),
+            (low_strata, 0.10)
+        ]
+        
+        for strata_df, alloc in strata_map:
+            strata_target = int(tod_target * alloc)
+            strata_current = len([i for i in tod_indices if i in strata_df.index])
+            
+            remaining_in_strata = strata_df[~strata_df.index.isin(tod_indices)]
+            for idx, row in remaining_in_strata.iterrows():
+                if strata_current >= strata_target or len(tod_indices) >= tod_target:
+                    break
+                if not is_vendor_used(row):
+                    tod_indices.append(idx)
+                    mark_vendor_used(row)
+                    strata_current += 1
+
+        # Fallback if allocations couldn't be met due to vendor dedupe
         if len(tod_indices) < tod_target:
-            remaining_tod = data[~data.index.isin(tod_indices)].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
-            for idx, row in remaining_tod.iterrows():
+            remaining = data[~data.index.isin(tod_indices)].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+            for idx, row in remaining.iterrows():
                 if len(tod_indices) >= tod_target: break
                 if not is_vendor_used(row):
                     tod_indices.append(idx)

@@ -193,14 +193,15 @@ async def get_ai_insights(category: str, stats: dict) -> dict:
 @app.post("/api/materiality")
 async def setup_materiality(
     session_id: str = Form(...),
-    npbt: float = Form(...),
+    value: float = Form(...),
+    benchmark: str = Form("NPBT"),
     romm: str = Form(...),
     perf_pct: float = Form(75.0),
     trivial_pct: float = Form(3.0),
     overall_pct: Optional[float] = Form(None)
 ):
     try:
-        calc = MaterialityCalculator(npbt, romm)
+        calc = MaterialityCalculator(value, benchmark, romm)
         res = calc.calculate(perf_pct, trivial_pct, explicit_overall_pct=overall_pct)
         update_session(session_id, {"materiality": res})
         return res
@@ -432,67 +433,63 @@ async def vouch_invoice(
 
     # 2. AI Structured Parsing from OCR Text
     ai_result = await ai_engine.vouch_invoice(ocr_text)
-    
     extracted_data = ai_result.get("data", [])
     model_used = ai_result.get("model_used", "Ensemble AI")
-    raw_extraction = ai_result.get("raw_extraction", {})
 
     if not extracted_data:
-        extracted_data = [{"field": "Extraction Status", "value": "AI parsing failed - raw OCR only"}]
-        # Optionally add some raw text if AI fails
-        extracted_data.append({"field": "Raw Text Sample", "value": ocr_text[:100] + "..."})
+        extracted_data = [{"field": "Extraction Status", "value": "AI parsing failed"}]
     else:
-        # We successfully got data, we can now skip the old fallback logic
-        return {"data": extracted_data, "model_used": model_used}
-    
-    if not extracted_data:
+        # 3. TRANSACTION-VOUCHER BINDING (Forensic Match)
+        match_status = "Not Found in Ledger"
+        match_row = None
+        
         try:
-            print("[VOUCH] AI extraction failed. Falling back to Tesseract OCR...")
-            import pytesseract
-            from PIL import Image
+            # Extract fields for matching
+            data_map = {item['field']: str(item['value']).strip() for item in extracted_data}
+            inv_no = data_map.get("Invoice Number") or data_map.get("Invoice No") or ""
+            raw_amt = data_map.get("Grand Total") or data_map.get("Total Amount") or "0"
+            
+            # Clean amount: "₹ 1,200.50" -> 1200.50
             import re
-            
-            if os.name == 'nt':
-                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-            
-            # Handle PDFs vs Images
-            if mime_type == 'application/pdf':
-                import fitz  # PyMuPDF
-                doc = fitz.open(stream=contents, filetype="pdf")
-                page = doc.load_page(0) # First page only
-                pix = page.get_pixmap()
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            else:
-                img = Image.open(io.BytesIO(contents))
-                
-            raw_text = pytesseract.image_to_string(img)
-            
-            inv_no = re.search(r'(?i)(?:invoice\s*(?:no|number|#)?)\s*[:\-]?\s*([A-Z0-9\-]+)', raw_text)
-            date = re.search(r'(?i)(?:date)\s*[:\-]?\s*([\d]{1,2}[/\-\.][\d]{1,2}[/\-\.][\d]{2,4})', raw_text)
-            amt = re.search(r'(?i)(?:total|amount|gross|net)\s*[:\-]?\s*[$₹£€Rs\.]?\s*([\d,]+\.\d{2})', raw_text)
-            gst = re.search(r'(?i)(?:gstin|gst|tin)\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1})', raw_text)
-            
-            extracted_data = [
-                {"field": "Invoice No", "value": inv_no.group(1) if inv_no else "Not Found (OCR)"},
-                {"field": "Vendor Name", "value": "Review Manually (OCR)"},
-                {"field": "Date", "value": date.group(1) if date else "Not Found (OCR)"},
-                {"field": "Gross Amount", "value": amt.group(1) if amt else "Not Found (OCR)"},
-                {"field": "GSTIN", "value": gst.group(1) if gst else "Not Found (OCR)"},
-                {"field": "Match Status", "value": "EXTRACTED (Tesseract OCR Fallback)"}
-            ]
-        except Exception as ocr_e:
-            print(f"[VOUCH] Tesseract OCR failed: {ocr_e}")
+            amt_str = re.sub(r'[^\d\.]', '', raw_amt)
+            clean_amt = float(amt_str) if amt_str else 0.0
 
-    # Final fallback if both AI and OCR failed
-    if not extracted_data:
-        extracted_data = [
-            {"field": "Invoice No", "value": "Could not extract (AI/OCR unavailable)"},
-            {"field": "Vendor Name", "value": "N/A"},
-            {"field": "Date", "value": "N/A"},
-            {"field": "Gross Amount", "value": "N/A"},
-            {"field": "GSTIN", "value": "N/A"},
-            {"field": "Match Status", "value": "FALLBACK - Extraction failed"}
-        ]
+            # Load Ledger from GridFS
+            if fs is not None:
+                ledger_cursor = fs.find({"metadata.session_id": session_id, "type": "ledger_upload"}).sort("uploadDate", -1).limit(1)
+                ledger_files = list(ledger_cursor)
+                if ledger_files:
+                    ledger_data = fs.get(ledger_files[0]._id).read()
+                    ledger_df = pd.read_excel(io.BytesIO(ledger_data)) if ledger_files[0].filename.endswith('xlsx') else pd.read_csv(io.BytesIO(ledger_data))
+                    
+                    # Fuzzy Match Amount first
+                    if clean_amt > 0:
+                        num_cols = ledger_df.select_dtypes(include=[np.number]).columns
+                        for col in num_cols:
+                            match = ledger_df[np.isclose(ledger_df[col].abs(), clean_amt, atol=1.0)]
+                            if not match.empty:
+                                match_row = match.iloc[0].to_dict()
+                                match_status = "✅ MATCHED"
+                                break
+                    
+                    # If amount matched, try to verify invoice number if available
+                    if match_row and inv_no:
+                        # Simple substring check
+                        inv_found = False
+                        for val in match_row.values():
+                            if inv_no in str(val):
+                                inv_found = True
+                                break
+                        if not inv_found:
+                            match_status = "⚠️ AMOUNT MATCHED (Invoice No Mismatch)"
+            
+            extracted_data.append({"field": "Match Status", "value": match_status})
+            if match_row:
+                # Add matched ledger details to extraction results for UI visibility
+                extracted_data.append({"field": "Ledger Bind", "value": f"Row Matched by Value ({clean_amt})"})
+        except Exception as e:
+            print(f"[VOUCH] Binding error: {e}")
+            extracted_data.append({"field": "Audit Error", "value": "Reconciliation failed"})
 
     # Store vouching results in MongoDB for persistence and Excel reporting
     if db is not None:

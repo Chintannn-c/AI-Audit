@@ -47,16 +47,19 @@ class AuditReportGenerator:
         pct_fmt = workbook.add_format({'border': 1, 'num_format': '0.0%'})
         
         if report_type == 'sampling':
-            # ── Sheet 1: Original Ledger ──
+            # ── Sheet 1: Materiality & Risk (NEW) ──
+            self._write_planning_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt)
+
+            # ── Sheet 2: Original Ledger ──
             self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
             
-            # ── Sheet 2: TOD Samples ──
+            # ── Sheet 3: TOD Samples ──
             self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-            # ── Sheet 3: TOC Samples ──
+            # ── Sheet 4: TOC Samples ──
             self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
 
-            # ── Sheet 4: Audit Summary ──
+            # ── Sheet 5: Audit Summary ──
             self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
         else:
             # ── Sheet 1: Vouching Reconciliation ──
@@ -367,3 +370,61 @@ class AuditReportGenerator:
             else:
                 ws.write(r, 1, value, val_fmt)
             r += 1
+
+    def _write_planning_sheet(self, wb, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt):
+        ws = wb.add_worksheet('Materiality & Risk')
+        ws.set_column(0, 0, 40)
+        ws.set_column(1, 1, 30)
+        
+        r = 0
+        ws.write(r, 0, 'AUDIT PLANNING & MATERIALITY (SA 320)', title_fmt)
+        r += 2
+
+        # Materiality Section
+        ws.write(r, 0, '1. MATERIALITY DETERMINATION', sub_fmt)
+        ws.write(r, 1, '', sub_fmt)
+        r += 1
+        
+        m = self.materiality
+        m_items = [
+            ('Benchmark Selected', m.get('benchmark', 'NPBT')),
+            ('Benchmark Value', m.get('value', 0)),
+            ('Risk of Material Misstatement (RoMM)', m.get('romm', 'Medium')),
+            ('Overall Materiality (%)', f"{m.get('overall_pct', 0)}%"),
+            ('Overall Materiality (Value)', m.get('overall_materiality', 0)),
+            ('Performance Materiality (%)', f"{m.get('perf_pct', 0)}%"),
+            ('Performance Materiality (Value)', m.get('performance_materiality', 0)),
+            ('Trivial Threshold (%)', f"{m.get('trivial_pct', 0)}%"),
+            ('Trivial Threshold (Value)', m.get('trivial_threshold', 0)),
+        ]
+        for label, val in m_items:
+            ws.write(r, 0, label, lbl_fmt)
+            if isinstance(val, (int, float)):
+                ws.write(r, 1, val, vnum_fmt)
+            else:
+                ws.write(r, 1, str(val), val_fmt)
+            r += 1
+        
+        r += 2
+        # Risk Assessment Section
+        ws.write(r, 0, '2. RISK ASSESSMENT & CLASSIFICATION (SA 315)', sub_fmt)
+        ws.write(r, 1, '', sub_fmt)
+        r += 1
+        
+        rk = self.risk
+        rk_items = [
+            ('Public / PIE Entity?', 'Yes' if rk.get('turnover_250') else 'No'),
+            ('IFC Applicable?', 'Yes' if rk.get('ifc') else 'No'),
+            ('Weak Control Environment?', 'Yes' if rk.get('governance') else 'No'),
+            ('History of Misstatements?', 'Yes' if rk.get('misstatements') else 'No'),
+            ('Audit Classification', 'LARGE AUDIT' if rk.get('audit_type') == 'large' else 'SMALL AUDIT'),
+            ('Audit Approach', 'Combined (TOD + TOC)' if rk.get('audit_type') == 'large' and not rk.get('governance') else 'Substantive (TOD only)'),
+        ]
+        for label, val in rk_items:
+            ws.write(r, 0, label, lbl_fmt)
+            ws.write(r, 1, str(val), val_fmt)
+            r += 1
+
+        r += 2
+        ws.write(r, 0, 'Sign-off: ________________________', wb.add_format({'italic': True}))
+        ws.write(r, 1, 'Date: ________________', wb.add_format({'italic': True}))
