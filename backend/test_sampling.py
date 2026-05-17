@@ -51,6 +51,38 @@ def test_sampling_logic():
     selected_months = set(pd.to_datetime(all_selected['Date'], dayfirst=True).dt.month.tolist())
     print(f"Selected Months: {sorted(list(selected_months))}")
     assert len(selected_months) == 12 # All 12 months should be covered
+
+    print("\n--- Testing Value-Based Sampling Fixed (TOD+TOC, 30 samples, 70/30 split) ---")
+    # 30 samples -> 21 TOD, 9 TOC
+    tod_val, toc_val = analyzer.generate_samples(target_count=30, sampling_basis='value', audit_type='large', tod_pct=70)
+    print(f"Value TOD Count: {len(tod_val)}, Value TOC Count: {len(toc_val)}")
+    assert len(tod_val) == 21
+    assert len(toc_val) == 9
+    
+    # 1. Check Row Uniqueness across TOD and TOC
+    row_intersection_val = set(tod_val.index).intersection(set(toc_val.index))
+    print(f"Value Row Intersection Size: {len(row_intersection_val)}")
+    assert len(row_intersection_val) == 0
+    
+    # 2. Check Month Coverage
+    all_selected_val = pd.concat([tod_val, toc_val])
+    selected_months_val = set(pd.to_datetime(all_selected_val['Date'], dayfirst=True).dt.month.tolist())
+    print(f"Value Selected Months: {sorted(list(selected_months_val))}")
+    assert len(selected_months_val) == 12 # All 12 months should be covered
+    
+    # 3. Check No Duplicate Transactions selected
+    selected_indices = list(tod_val.index) + list(toc_val.index)
+    assert len(set(selected_indices)) == len(selected_indices), "Duplicate transactions found in sample indices!"
+    print("Value Unique Selection: Verified (no duplicate indices)")
+
+    # 4. Check Vendor Cap (Cap of 2 is strictly respected since 30 samples < 40 max unique capacity)
+    from collections import Counter
+    all_selected_vendors = all_selected_val['Vendor'].dropna().str.strip().str.lower().tolist()
+    vendor_counts = Counter(all_selected_vendors)
+    print(f"Selected Vendor Frequencies: {dict(vendor_counts.most_common(5))}")
+    for vendor, count in vendor_counts.items():
+        assert count <= 2, f"Vendor '{vendor}' appeared {count} times, which exceeds the cap of 2!"
+    print("Value Vendor Cap (cap <= 2): Verified successfully")
     
     print("\n[SUCCESS] All Sampling Logic Tests Passed!")
 

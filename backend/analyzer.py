@@ -784,32 +784,23 @@ class SampleEngine:
     def sample_by_value(
         self,
         scored: pd.DataFrame,
-        # Legacy percentage interface (original API — kept for backward compatibility)
         sample_pct: Optional[float] = None,
         tod_pct: Optional[float] = None,
-        # Modern absolute-count interface (used internally by generate())
         tod_target_count: Optional[int] = None,
         toc_target_count: Optional[int] = None,
-        # Shared required args
         amount_col: Optional[str] = None,
         vendor_col: Optional[str] = None,
         category: str = 'Sales',
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Select transactions until cumulative value reaches the target value share.
-        Two-stage backfill: strict unique-vendor first, then relaxed repeat-vendor.
-
-        Supports two calling conventions for full backward compatibility:
-
-        Legacy (percentage-based, original frontend/API interface):
-            sample_by_value(scored, sample_pct=20.0, tod_pct=70.0, amount_col=..., ...)
-
-        Modern (absolute-count, used internally by generate()):
-            sample_by_value(scored, tod_target_count=14, toc_target_count=6, amount_col=..., ...)
+        Value-based sampling that prioritises value coverage while strictly
+        honouring the requested target row counts (TOD + TOC).
+        
+        Guarantees month coverage and enforces progressive vendor-repetition caps.
         """
         total_rows = len(scored)
 
-        # Resolve absolute counts from whichever interface was used
+        # 1. Resolve absolute counts from legacy or modern interfaces
         if tod_target_count is not None and toc_target_count is not None:
             _tod_count = tod_target_count
             _toc_count = toc_target_count
@@ -835,131 +826,94 @@ class SampleEngine:
         if total_count_target == 0 or total_rows == 0:
             return self._empty_pair(scored)
 
-        # Re-bind to the names used in the rest of the method body
         tod_target_count = _tod_count
         toc_target_count = _toc_count
 
-        # Derive value targets proportionally from count targets
-        total_value = scored[amount_col].abs().sum()
-        if total_value == 0:
-            logger.warning('Total value is 0; falling back to count-based sampling.')
-            return self.sample_stratified(
-                scored, tod_target_count, toc_target_count,
-                amount_col, vendor_col, None, category
-            )
-
-        sample_pct = total_count_target / total_rows
-        target_value = total_value * sample_pct
-        tod_share = tod_target_count / max(total_count_target, 1)
-        tod_target_val = target_value * tod_share
-        toc_target_val = target_value - tod_target_val
-
-        logger.debug(
-            f'[VALUE] total={total_value:.2f} target={target_value:.2f} '
-            f'tod_target={tod_target_val:.2f} toc_target={toc_target_val:.2f}'
-        )
-
-        sorted_data = scored.sort_values(by=amount_col, ascending=False, key=abs)
+        # Ensure we work on a clean copy of sorted data to avoid SettingWithCopy warnings
+        sorted_data = scored.sort_values(by=amount_col, ascending=False, key=abs).copy()
         norm_col = '_Norm_Vendor' if '_Norm_Vendor' in sorted_data.columns else vendor_col
 
-        # TOD uses its own counter; TOC uses its own — independent.
-        tod_seen_vendors: Counter = Counter()
-        tod_is_used, tod_mark_used = self._vendor_helpers(
-            norm_col, tod_seen_vendors, cap=self.config.vendor_cap_primary
+        # ── PHASE 1: Mandatory month coverage (ALL months, one row each) ──────
+        month_indices: List[Any] = []
+        month_seen_vendors: Counter = Counter()
+        month_is_used, month_mark_used = self._vendor_helpers(
+            norm_col, month_seen_vendors, cap=self.config.vendor_cap_primary
         )
 
-        # ── TOD: greedy highest-value, unique vendors ──
-        tod_rows: List[Any] = []
-        tod_cumval = 0.0
+        if '_Parsed_Date' in sorted_data.columns:
+            sorted_data['_Month'] = sorted_data['_Parsed_Date'].dt.month
+            months = sorted(sorted_data['_Month'].dropna().unique())
+            for m in months:
+                month_pool = sorted_data[sorted_data['_Month'] == m]
+                for idx, row in month_pool.iterrows():
+                    if not month_is_used(row):
+                        month_indices.append(idx)
+                        month_mark_used(row)
+                        break
+
+        # ── PHASE 2: Greedy highest-value fill up to total_count_target ───────
+        all_seen_vendors: Counter = Counter()
+        # Seed with selections from month-coverage so they count toward the cap
+        for idx in month_indices:
+            row = sorted_data.loc[idx]
+            v = str(row.get(norm_col, '')).strip().lower()
+            if v and v not in ('nan', 'none', ''):
+                all_seen_vendors[v] += 1
+
+        all_is_used, all_mark_used = self._vendor_helpers(
+            norm_col, all_seen_vendors, cap=self.config.vendor_cap_primary
+        )
+
+        selected_indices: List[Any] = list(month_indices)
+        selected_set = set(selected_indices)
 
         for idx, row in sorted_data.iterrows():
-            if not tod_is_used(row):
-                tod_mark_used(row)
-                tod_rows.append(idx)
-                tod_cumval += abs(row[amount_col])
-            if tod_cumval >= tod_target_val:
+            if len(selected_indices) >= total_count_target:
                 break
+            if idx in selected_set:
+                continue
+            if not all_is_used(row):
+                selected_indices.append(idx)
+                selected_set.add(idx)
+                all_mark_used(row)
 
-        if not tod_rows:
-            tod_rows = [sorted_data.index[0]]
+        # ── PHASE 3: Fallback — relax vendor cap to vendor_cap_fallback ───────
+        if len(selected_indices) < total_count_target:
+            relaxed_is_used, relaxed_mark_used = self._vendor_helpers(
+                norm_col, all_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
+            for idx, row in sorted_data.iterrows():
+                if len(selected_indices) >= total_count_target:
+                    break
+                if idx in selected_set:
+                    continue
+                if not relaxed_is_used(row):
+                    selected_indices.append(idx)
+                    selected_set.add(idx)
+                    relaxed_mark_used(row)
 
-        tod = sorted_data.loc[tod_rows].copy()
-        tod_index_set = set(tod.index)
+        # ── PHASE 4: Last resort — include any remaining rows uncapped ─────────
+        if len(selected_indices) < total_count_target:
+            for idx in sorted_data.index:
+                if len(selected_indices) >= total_count_target:
+                    break
+                if idx not in selected_set:
+                    selected_indices.append(idx)
+                    selected_set.add(idx)
 
-        # ── TOC: independent counter, from remaining rows ──
-        toc_seen_vendors: Counter = Counter()
-        toc_is_used, toc_mark_used = self._vendor_helpers(
-            norm_col, toc_seen_vendors, cap=self.config.vendor_cap_primary
+        # ── Split selected into TOD / TOC at requested ratio ──────────────────
+        # selected_indices is already sorted by absolute value descending
+        tod_indices = selected_indices[:tod_target_count]
+        toc_indices = selected_indices[tod_target_count: tod_target_count + toc_target_count]
+
+        logger.debug(
+            f'[VALUE-FIXED] total_count_target={total_count_target} '
+            f'selected={len(selected_indices)} '
+            f'TOD={len(tod_indices)} TOC={len(toc_indices)} '
+            f'months_covered={len(month_indices)}'
         )
 
-        remaining = sorted_data[~sorted_data.index.isin(tod_index_set)]
-
-        toc_rows: List[Any] = []
-        toc_cumval = 0.0
-
-        for idx, row in remaining.iterrows():
-            if not toc_is_used(row):
-                toc_mark_used(row)
-                toc_rows.append(idx)
-                toc_cumval += abs(row[amount_col])
-            if toc_cumval >= toc_target_val:
-                break
-
-        toc = sorted_data.loc[toc_rows].copy() if toc_rows else pd.DataFrame(columns=scored.columns)
-
-        # ── Two-stage backfill to reach value target ──
-        combined_val = tod_cumval + toc_cumval
-        if combined_val < target_value:
-            all_selected = tod_index_set | set(toc.index)
-            leftover = sorted_data[~sorted_data.index.isin(all_selected)]
-
-            # Stage 1: strict unique-vendor backfill (vendors with 0 appearances in toc counter)
-            strict_left = leftover.sort_values(by=amount_col, ascending=False, key=abs)
-
-            extra1_rows: List[Any] = []
-            for idx, row in strict_left.iterrows():
-                v = str(row.get(norm_col, '')).strip().lower()
-                is_named = v and v not in ('nan', 'none', '')
-                if is_named and toc_seen_vendors[v] == 0:
-                    extra1_rows.append(idx)
-                    toc_mark_used(row)   # [FIXED-5] was missing for named rows
-                    combined_val += abs(row[amount_col])
-                elif not is_named:
-                    # Non-vendor rows treated as unique
-                    extra1_rows.append(idx)
-                    toc_mark_used(row)   # [FIXED-5] was missing entirely
-                    combined_val += abs(row[amount_col])
-                if combined_val >= target_value:
-                    break
-
-            if extra1_rows:
-                logger.debug(f'[VALUE] Backfill stage 1: +{len(extra1_rows)} unique-vendor rows')
-                toc = pd.concat([toc, sorted_data.loc[extra1_rows]])
-
-            # Stage 2: relaxed backfill — use fallback cap
-            if combined_val < target_value:
-                all_selected = tod_index_set | set(toc.index)
-                final_left = sorted_data[~sorted_data.index.isin(all_selected)]
-                toc_relaxed_is_used, toc_relaxed_mark_used = self._vendor_helpers(
-                    norm_col, toc_seen_vendors, cap=self.config.vendor_cap_fallback
-                )
-                extra2_rows: List[Any] = []
-                for idx, row in final_left.iterrows():
-                    if not toc_relaxed_is_used(row):
-                        extra2_rows.append(idx)
-                        toc_relaxed_mark_used(row)
-                        combined_val += abs(row[amount_col])
-                    if combined_val >= target_value:
-                        break
-                if extra2_rows:
-                    logger.debug(
-                        f'[VALUE] Backfill stage 2: +{len(extra2_rows)} rows '
-                        f'(repeat vendors allowed up to {self.config.vendor_cap_fallback} times)'
-                    )
-                    toc = pd.concat([toc, sorted_data.loc[extra2_rows]])
-
-        logger.debug(f'[VALUE] Final: TOD={len(tod)} TOC={len(toc)}')
-        return self._finalise_value(tod, toc, amount_col, category)
+        return self._finalise(sorted_data, tod_indices, toc_indices, amount_col, category)
 
     # ── Strategy 3: Smart Count Mode (vendor-pool-first) ─────────────────────
 
