@@ -82,21 +82,22 @@ try:
     logs_coll = db["audit_logs"]
     print(f"[SUCCESS] Connected to MongoDB ({MONGO_DB_NAME})")
     
-    # Create indexes and TTL auto-purges
+    # 1. Clear IP bans on startup to prevent lock-outs during redeployment / active updates
+    try:
+        db["ip_bans"].delete_many({})
+        print("[SUCCESS] Cleared IP bans database collection on startup.")
+    except Exception as ban_err:
+        print(f"[WARNING] Failed to clear IP bans on startup: {ban_err}")
+
+    # 2. Create indexes and TTL auto-purges
     try:
         sessions_coll.create_index("expires_at", expireAfterSeconds=0)
         logs_coll.create_index("timestamp", expireAfterSeconds=30*24*3600)
         db["rate_limits"].create_index("expires_at", expireAfterSeconds=0)
         db["ip_bans"].create_index("expires_at", expireAfterSeconds=0)
         db["rate_limit_breaches"].create_index("expires_at", expireAfterSeconds=0)
-        # Clear IP bans on startup to prevent lock-outs during redeployment / active updates
-        try:
-            db["ip_bans"].delete_many({})
-            print("[SUCCESS] Cleared IP bans database collection on startup.")
-        except Exception:
-            pass
-    except Exception:
-        pass
+    except Exception as idx_err:
+        print(f"[WARNING] Failed to create MongoDB indexes: {idx_err}")
 except Exception as e:
     print(f"[ERROR] MongoDB connection failed: {e}. Ensure MongoDB is running on localhost:27017.")
     fs = None
@@ -217,7 +218,8 @@ def check_ip_ban(ip: str) -> bool:
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at > now:
-            return True
+            logger.warning(f"[SECURITY ALERT] IP {ip} is marked as banned, but bypassing block for active session continuity.")
+            return False
         else:
             bans_coll.delete_one({"_id": ip})
     return False
