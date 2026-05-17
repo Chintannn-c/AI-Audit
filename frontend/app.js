@@ -1,4 +1,75 @@
 
+// Native fetch backup
+const nativeFetch = window.fetch;
+
+// Secured fetch wrapper with automatic token rotation and 401 re-handshake
+window.fetch = async function(url, options = {}) {
+    options.headers = options.headers || {};
+    
+    let secret = localStorage.getItem('stataudit_session_secret');
+    
+    // If not set and this is not a session create request, trigger handshake first
+    if (!secret && !url.includes('/api/session/create')) {
+        await initSession();
+        secret = localStorage.getItem('stataudit_session_secret');
+    }
+    
+    if (secret) {
+        if (options.headers instanceof Headers) {
+            options.headers.set('Authorization', `Bearer ${secret}`);
+        } else {
+            options.headers['Authorization'] = `Bearer ${secret}`;
+        }
+    }
+    
+    options.credentials = 'include';
+    
+    try {
+        const response = await nativeFetch(url, options);
+        
+        // Handle secret rotation
+        const rotatedSecret = response.headers.get('X-Session-Secret');
+        if (rotatedSecret) {
+            console.log("[SECURITY] Rotating session secret");
+            localStorage.setItem('stataudit_session_secret', rotatedSecret);
+        }
+        
+        // Handle unauthorized response
+        if (response.status === 401 && !url.includes('/api/session/create')) {
+            console.warn("[SECURITY] Session expired or invalid. Re-authenticating...");
+            localStorage.removeItem('stataudit_session_secret');
+            window.location.reload();
+        }
+        
+        return response;
+    } catch (err) {
+        console.error("[SECURITY] Fetch error:", err);
+        throw err;
+    }
+};
+
+async function initSession() {
+    let secret = localStorage.getItem('stataudit_session_secret');
+    if (!secret) {
+        console.log("[SECURITY] Starting new session handshake...");
+        try {
+            const res = await nativeFetch('/api/session/create', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('stataudit_session_secret', data.session_secret);
+                console.log("[SECURITY] Handshake successful, session active.");
+            } else {
+                console.error("[SECURITY] Handshake failed:", res.statusText);
+            }
+        } catch (err) {
+            console.error("[SECURITY] Handshake exception:", err);
+        }
+    }
+}
+
 function generateSessionId() {
     return 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
 }
@@ -11,9 +82,14 @@ function getOrCreateSessionId() {
     return newId;
 }
 
-function clearSession() {
+async function clearSession() {
+    try {
+        await fetch('/api/session/revoke', { method: 'POST' });
+    } catch (e) {
+        console.error("Revocation failed", e);
+    }
+    localStorage.removeItem('stataudit_session_secret');
     localStorage.removeItem('stataudit_session_id');
-    sessionId = getOrCreateSessionId();
     location.reload();
 }
 
@@ -106,17 +182,19 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionId = getOrCreateSessionId();
     console.log('Session:', sessionId);
 
-    // Mobile init: Collapse sidebar by default
-    if (window.innerWidth <= 768) {
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) sidebar.classList.add('collapsed');
+    // Synchronize sidebar and main wrapper states programmatically on load
+    const sidebar = document.querySelector('.sidebar');
+    const main = document.querySelector('.main-wrapper');
+    const toggleBtn = document.getElementById('sidebarToggle');
 
-        // Also ensure the toggle button is in the right state
-        const toggleBtn = document.getElementById('sidebarToggle');
-        if (toggleBtn) {
-            toggleBtn.classList.remove('active');
-            toggleBtn.innerHTML = '<i data-lucide="menu"></i>';
-            lucide.createIcons();
+    if (sidebar && main && toggleBtn) {
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        toggleBtn.classList.toggle('active', !isCollapsed);
+        toggleBtn.innerHTML = isCollapsed ? '<i data-lucide="menu"></i>' : '<i data-lucide="chevron-left"></i>';
+        if (window.innerWidth > 768) {
+            main.classList.toggle('expanded', isCollapsed);
+        } else {
+            main.classList.add('expanded');
         }
     }
 
@@ -306,17 +384,17 @@ function initMaterialityLogic() {
         const performance = overall * (perfPct / 100);
         const trivial = overall * (trivialPct / 100);
 
-        document.getElementById('resOverall').textContent = `â‚¹ ${overall.toFixed(2)}`;
-        document.getElementById('resPerf').textContent = `â‚¹ ${performance.toFixed(2)}`;
-        document.getElementById('resTrivial').textContent = `â‚¹ ${trivial.toFixed(2)}`;
+        document.getElementById('resOverall').textContent = `₹ ${overall.toFixed(2)}`;
+        document.getElementById('resPerf').textContent = `₹ ${performance.toFixed(2)}`;
+        document.getElementById('resTrivial').textContent = `₹ ${trivial.toFixed(2)}`;
 
         // Sync to Reports section
         const rptO = document.getElementById('rptOverall');
         const rptP = document.getElementById('rptPerf');
         const rptT = document.getElementById('rptTrivial');
-        if (rptO) rptO.textContent = `â‚¹ ${overall.toFixed(2)} `;
-        if (rptP) rptP.textContent = `â‚¹ ${performance.toFixed(2)}`;
-        if (rptT) rptT.textContent = `â‚¹ ${trivial.toFixed(2)}`;
+        if (rptO) rptO.textContent = `₹ ${overall.toFixed(2)} `;
+        if (rptP) rptP.textContent = `₹ ${performance.toFixed(2)}`;
+        if (rptT) rptT.textContent = `₹ ${trivial.toFixed(2)}`;
 
         document.getElementById('materialityPlaceholder').classList.add('hidden');
         document.getElementById('materialityResults').classList.remove('hidden');
@@ -324,7 +402,8 @@ function initMaterialityLogic() {
         // Sync with Backend
         const fd = new FormData();
         fd.append('session_id', sessionId);
-        fd.append('npbt', turnover); // Using turnover as the basis for NPBT in this simplified logic
+        fd.append('value', turnover);
+        fd.append('benchmark', 'NPBT');
         fd.append('romm', romm);
         fd.append('perf_pct', perfPct);
         fd.append('trivial_pct', trivialPct);
@@ -648,7 +727,7 @@ async function runDownload() {
 
 async function runVouchingDownload() {
     try {
-        const res = await fetch(`/api/download/vouching?session_id=${sessionId}`);
+        const res = await fetch(`/api/download/vouching`);
         if (!res.ok) {
             const errData = await res.json();
             throw new Error(errData.error || 'Failed to download report');
@@ -811,7 +890,7 @@ function updateChart(stats) {
         data: {
             labels: ['Minimum', 'Average', 'Maximum'],
             datasets: [{
-                label: 'Transaction Value (â‚¹)',
+                label: 'Transaction Value (₹)',
                 data: [stats.minimum, stats.average, stats.maximum],
                 backgroundColor: ['rgba(16,185,129,0.5)', 'rgba(99,102,241,0.5)', 'rgba(239,68,68,0.5)'],
                 borderColor: ['#10b981', '#6366f1', '#ef4444'],
@@ -918,7 +997,7 @@ function renderDashboard(db) {
     const vendorRows = topVendors.map((v, i) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;${i < topVendors.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.06);' : ''}">
             <span style="font-size:12px;color:var(--text-primary);">${v.name}</span>
-            <span style="font-size:12px;font-weight:700;color:var(--accent-primary);">â‚¹${Number(v.value).toLocaleString()}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--accent-primary);">₹${Number(v.value).toLocaleString()}</span>
         </div>`
     ).join('');
 
@@ -1009,7 +1088,7 @@ function renderTrendChart(trends) {
             labels,
             datasets: [
                 {
-                    label: 'Txn Value (â‚¹)',
+                    label: 'Txn Value (₹)',
                     data: values,
                     backgroundColor: bgColors,
                     borderColor: borderColors,
@@ -1064,10 +1143,10 @@ async function updateVouchHistory() {
     const body = document.getElementById('vouchHistoryBody');
     const count = document.getElementById('vouchCount');
 
-    if (!section || !body || !sessionId) return;
+    if (!section || !body) return;
 
     try {
-        const res = await fetch(`/api/vouch/history?session_id=${sessionId}`);
+        const res = await fetch(`/api/vouch/history`);
         const data = await res.json();
 
         if (data.data && data.data.length > 0) {
