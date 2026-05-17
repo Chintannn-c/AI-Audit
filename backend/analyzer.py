@@ -696,21 +696,7 @@ class SampleEngine:
                     tod_indices.append(idx)
                     tod_mark_used(row)
 
-        # Fallback 2: Relax vendor cap to vendor_cap_fallback (default 3).
-        # [FIXED-2] Previously identical to Fallback 1; now uses a relaxed cap helper.
-        if len(tod_indices) < tod_target:
-            tod_relaxed_is_used, tod_relaxed_mark_used = self._vendor_helpers(
-                vcol, tod_seen_vendors, cap=self.config.vendor_cap_fallback
-            )
-            remaining = data[~data.index.isin(tod_indices)].sort_values(
-                by=amt_col, ascending=False, key=abs
-            )
-            for idx, row in remaining.iterrows():
-                if len(tod_indices) >= tod_target:
-                    break
-                if not tod_relaxed_is_used(row):
-                    tod_indices.append(idx)
-                    tod_relaxed_mark_used(row)
+        # Fallback 2 has been removed to strictly enforce the primary vendor cap of 2.
 
         # ── TOC selection ──────────────────────────────────────────────────
         # [FIXED-3] TOC uses its own Counter, completely independent of TOD.
@@ -761,21 +747,7 @@ class SampleEngine:
                     toc_indices.append(idx)
                     toc_mark_used(row)
 
-        # Fallback TOC 2: relaxed cap (vendor_cap_fallback).
-        # [FIXED-2 mirror] Same fix applied to TOC as to TOD.
-        if toc_target > 0 and len(toc_indices) < toc_target:
-            toc_relaxed_is_used, toc_relaxed_mark_used = self._vendor_helpers(
-                vcol, toc_seen_vendors, cap=self.config.vendor_cap_fallback
-            )
-            pool = data[
-                ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
-            ].sort_values(by=amt_col, ascending=False, key=abs)
-            for idx, row in pool.iterrows():
-                if len(toc_indices) >= toc_target:
-                    break
-                if not toc_relaxed_is_used(row):
-                    toc_indices.append(idx)
-                    toc_relaxed_mark_used(row)
+        # Fallback TOC 2 has been removed to strictly enforce the primary vendor cap of 2.
 
         return self._finalise(data, tod_indices, toc_indices, amt_col, category)
 
@@ -877,29 +849,10 @@ class SampleEngine:
                 selected_set.add(idx)
                 all_mark_used(row)
 
-        # ── PHASE 3: Fallback — relax vendor cap to vendor_cap_fallback ───────
-        if len(selected_indices) < total_count_target:
-            relaxed_is_used, relaxed_mark_used = self._vendor_helpers(
-                norm_col, all_seen_vendors, cap=self.config.vendor_cap_fallback
-            )
-            for idx, row in sorted_data.iterrows():
-                if len(selected_indices) >= total_count_target:
-                    break
-                if idx in selected_set:
-                    continue
-                if not relaxed_is_used(row):
-                    selected_indices.append(idx)
-                    selected_set.add(idx)
-                    relaxed_mark_used(row)
-
-        # ── PHASE 4: Last resort — include any remaining rows uncapped ─────────
-        if len(selected_indices) < total_count_target:
-            for idx in sorted_data.index:
-                if len(selected_indices) >= total_count_target:
-                    break
-                if idx not in selected_set:
-                    selected_indices.append(idx)
-                    selected_set.add(idx)
+        # Note: Phase 3 (relaxed cap fallback) and Phase 4 (uncapped last resort)
+        # have been removed to strictly enforce that no vendor is considered more
+        # than the primary vendor cap of 2 times across the entire sample selection,
+        # in accordance with the auditor's strict non-repetition directive.
 
         # ── Split selected into TOD / TOC at requested ratio ──────────────────
         # selected_indices is already sorted by absolute value descending
@@ -1700,10 +1653,9 @@ class AuditAnalyzer:
                 "deficit":   total_needed - actual_count,
                 "explanation": (
                     f"Requested {total_needed} samples but only {actual_count} were "
-                    f"selected because the vendor repeat cap "
-                    f"(primary={self.config.vendor_cap_primary}, "
-                    f"fallback={self.config.vendor_cap_fallback}) was exhausted and "
-                    f"no further unique or repeat-eligible transactions remain in the ledger."
+                    f"selected because the strict vendor repeat cap "
+                    f"(primary={self.config.vendor_cap_primary}) was hit, and "
+                    f"no other qualifying unique transactions remain in the ledger."
                 ),
             }
         else:
