@@ -579,7 +579,7 @@ class SampleEngine:
 
         tod_indices: List[Any] = []
         toc_indices: List[Any] = []
-        seen_vendors: set = set()
+        seen_vendors = Counter()
 
         is_used, mark_used = self._vendor_helpers(vcol, seen_vendors)
 
@@ -622,15 +622,17 @@ class SampleEngine:
                     tod_indices.append(idx)
                     mark_used(row)
 
-        # Fallback 2: allow duplicate vendors
+        # Fallback 2: allow duplicate vendors (up to 2 times combined)
         if len(tod_indices) < tod_target:
             remaining = data[~data.index.isin(tod_indices)].sort_values(
                 by=amt_col, ascending=False, key=abs
             )
-            for idx, _ in remaining.iterrows():
+            for idx, row in remaining.iterrows():
                 if len(tod_indices) >= tod_target:
                     break
-                tod_indices.append(idx)
+                if not is_used(row):
+                    tod_indices.append(idx)
+                    mark_used(row)
 
         # Stage 3: Monthly random TOC
         if toc_target > 0:
@@ -658,15 +660,17 @@ class SampleEngine:
                     toc_indices.append(idx)
                     mark_used(row)
 
-        # Fallback TOC: allow duplicate vendors
+        # Fallback TOC: allow duplicate vendors (up to 2 times combined)
         if toc_target > 0 and len(toc_indices) < toc_target:
             pool = data[
                 ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
             ].sample(frac=1, random_state=42)
-            for idx, _ in pool.iterrows():
+            for idx, row in pool.iterrows():
                 if len(toc_indices) >= toc_target:
                     break
-                toc_indices.append(idx)
+                if not is_used(row):
+                    toc_indices.append(idx)
+                    mark_used(row)
 
         return self._finalise(data, tod_indices, toc_indices, amt_col, category)
 
@@ -758,7 +762,7 @@ class SampleEngine:
         # ── TOD: greedy highest-value, unique vendors ──
         tod_rows: List[Any] = []
         tod_cumval = 0.0
-        seen_vendors: set = set()
+        seen_vendors = Counter()
         is_used, mark_used = self._vendor_helpers(norm_col, seen_vendors)
 
         for idx, row in sorted_data.iterrows():
@@ -775,37 +779,17 @@ class SampleEngine:
         tod = sorted_data.loc[tod_rows].copy()
         tod_index_set = set(tod.index)
 
-        # Collect TOD vendors for zero-overlap enforcement
-        tod_vendors: set = set()
-        if norm_col and norm_col in tod.columns:
-            for v in tod[norm_col].dropna().astype(str):
-                vc = v.strip().lower()
-                if vc and vc not in ('nan', 'none', ''):
-                    tod_vendors.add(vc)
-
-        # ── TOC: from remaining rows, strict no party overlap with TOD ──
+        # ── TOC: from remaining rows, up to 2 times combined ──
         remaining = sorted_data[~sorted_data.index.isin(tod_index_set)]
-        if norm_col and norm_col in remaining.columns and tod_vendors:
-            remaining = remaining[
-                ~remaining[norm_col].astype(str).str.strip().str.lower().isin(tod_vendors)
-            ]
 
         toc_rows: List[Any] = []
         toc_cumval = 0.0
-        toc_seen_vendors: set = set()
 
         for idx, row in remaining.iterrows():
-            vendor = (
-                str(row.get(norm_col, '')).strip().lower()
-                if norm_col and norm_col in remaining.columns else ''
-            )
-            is_named = vendor and vendor not in ('nan', 'none', '')
-            if is_named and vendor in toc_seen_vendors:
-                continue
-            if is_named:
-                toc_seen_vendors.add(vendor)
-            toc_rows.append(idx)
-            toc_cumval += abs(row[amount_col])
+            if not is_used(row):
+                mark_used(row)
+                toc_rows.append(idx)
+                toc_cumval += abs(row[amount_col])
             if toc_cumval >= toc_target_val:
                 break
 
@@ -815,24 +799,23 @@ class SampleEngine:
         combined_val = tod_cumval + toc_cumval
         if combined_val < target_value:
             all_selected = tod_index_set | set(toc.index)
-            all_used_vendors = tod_vendors | toc_seen_vendors
             leftover = sorted_data[~sorted_data.index.isin(all_selected)]
 
-            # Stage 1: strict unique-vendor backfill
+            # Stage 1: strict unique-vendor backfill (vendors with 0 appearances so far)
             strict_left = leftover
-            if norm_col and norm_col in leftover.columns and all_used_vendors:
-                strict_left = leftover[
-                    ~leftover[norm_col].astype(str).str.strip().str.lower().isin(all_used_vendors)
-                ]
             strict_left = strict_left.sort_values(by=amount_col, ascending=False, key=abs)
 
             extra1_rows: List[Any] = []
-            extra1_seen: set = set()
             for idx, row in strict_left.iterrows():
                 v = str(row.get(norm_col, '')).strip().lower()
-                if v and v not in ('nan', 'none', '') and v not in extra1_seen:
+                is_named = v and v not in ('nan', 'none', '')
+                if is_named and seen_vendors[v] == 0:
                     extra1_rows.append(idx)
-                    extra1_seen.add(v)
+                    mark_used(row)
+                    combined_val += abs(row[amount_col])
+                elif not is_named:
+                    # Non-vendor rows are always treated as unique
+                    extra1_rows.append(idx)
                     combined_val += abs(row[amount_col])
                 if combined_val >= target_value:
                     break
@@ -841,20 +824,22 @@ class SampleEngine:
                 logger.debug(f'[VALUE] Backfill stage 1: +{len(extra1_rows)} unique-vendor rows')
                 toc = pd.concat([toc, sorted_data.loc[extra1_rows]])
 
-            # Stage 2: relaxed backfill — allow repeat vendors to reach target
+            # Stage 2: relaxed backfill — allow repeat vendors up to 2 times combined
             if combined_val < target_value:
                 all_selected = tod_index_set | set(toc.index)
                 final_left = sorted_data[~sorted_data.index.isin(all_selected)]
                 extra2_rows: List[Any] = []
                 for idx, row in final_left.iterrows():
-                    extra2_rows.append(idx)
-                    combined_val += abs(row[amount_col])
+                    if not is_used(row):
+                        extra2_rows.append(idx)
+                        mark_used(row)
+                        combined_val += abs(row[amount_col])
                     if combined_val >= target_value:
                         break
                 if extra2_rows:
                     logger.debug(
                         f'[VALUE] Backfill stage 2: +{len(extra2_rows)} rows '
-                        f'(repeat vendors allowed to reach value target)'
+                        f'(repeat vendors allowed up to 2 times combined)'
                     )
                     toc = pd.concat([toc, sorted_data.loc[extra2_rows]])
 
@@ -1035,19 +1020,19 @@ class SampleEngine:
 
     @staticmethod
     def _vendor_helpers(vcol, seen_vendors):
-        """Return (is_used, mark_used) closures over seen_vendors set."""
+        """Return (is_used, mark_used) closures over seen_vendors Counter."""
         def is_used(row) -> bool:
             if not vcol:
                 return False
             v = str(row.get(vcol, '')).strip().lower()
-            return v in seen_vendors if (v and v not in ('nan', 'none', '')) else False
+            return seen_vendors[v] >= 2 if (v and v not in ('nan', 'none', '')) else False
 
         def mark_used(row):
             if not vcol:
                 return
             v = str(row.get(vcol, '')).strip().lower()
             if v and v not in ('nan', 'none', ''):
-                seen_vendors.add(v)
+                seen_vendors[v] += 1
 
         return is_used, mark_used
 
@@ -1423,6 +1408,7 @@ class AuditAnalyzer:
         self.performance_materiality = performance_materiality
         self.raw_df = df.copy()
         self._scored_cache: Optional[pd.DataFrame] = None
+        self.sampling_deficit: Optional[dict] = None
 
         # Step 1: Initialise components
         self.cleaner    = DataCleaner(self.config)
@@ -1569,7 +1555,7 @@ class AuditAnalyzer:
             tod_size = math.ceil(total_needed * tod_pct / 100.0)
             toc_size = total_needed - tod_size
 
-        return self.engine.generate(
+        tod, toc = self.engine.generate(
             scored=scored,
             sampling_basis=sampling_basis,
             tod_target=tod_size,
@@ -1579,6 +1565,19 @@ class AuditAnalyzer:
             date_col=self.date_col,
             category=self.category,
         )
+
+        actual_count = len(tod) + len(toc)
+        if actual_count < total_needed:
+            self.sampling_deficit = {
+                "requested": total_needed,
+                "selected": actual_count,
+                "deficit": total_needed - actual_count,
+                "explanation": f"We requested {total_needed} samples, but only {actual_count} were selected because the 'Max 2 repetitions per vendor' combined constraint was hit, and there were no other unique vendor transactions remaining in the ledger population."
+            }
+        else:
+            self.sampling_deficit = None
+
+        return tod, toc
 
     # ── Statistics ────────────────────────────────────────────────────────────
 

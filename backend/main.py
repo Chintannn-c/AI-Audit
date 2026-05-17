@@ -775,7 +775,8 @@ async def analyze_ledger(
             "total_selected": len(tod) + len(toc),
             "sampling_basis": sampling_basis,
             "top_10": top_10,
-            "filename": clean_name
+            "filename": clean_name,
+            "deficit_info": getattr(analyzer, "sampling_deficit", None)
         })
         
         log_audit_action(session_id, "RUN_ANALYSIS", {
@@ -847,7 +848,8 @@ async def download_report(
             tod=tod, toc=toc,
             stats=stats, category=category,
             risk_analysis=risk_analysis,
-            sampling_config=sampling_config
+            sampling_config=sampling_config,
+            deficit_info=getattr(analyzer, "sampling_deficit", None)
         )
         report.add_engagement_data(
             session.get("materiality", {}),

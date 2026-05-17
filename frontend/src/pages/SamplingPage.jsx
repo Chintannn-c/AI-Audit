@@ -239,6 +239,32 @@ export default function SamplingPage({ setProcessing }) {
               ))}
             </div>
 
+            {results.deficit_info && (
+              <div className="mt-16" style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171', fontWeight: 'bold', fontSize: '14px' }}>
+                  <span>⚠️</span>
+                  <span>Sampling Capping Notice: Deficit in Selected Samples</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
+                  {results.deficit_info.explanation}
+                </p>
+                <div style={{ display: 'flex', gap: '24px', fontSize: '12px', color: '#94a3b8', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '8px', marginTop: '4px' }}>
+                  <span><strong>Requested Size:</strong> {results.deficit_info.requested}</span>
+                  <span><strong>Actual Selected:</strong> {results.deficit_info.selected}</span>
+                  <span><strong>Shortfall:</strong> {results.deficit_info.deficit} samples</span>
+                </div>
+              </div>
+            )}
+
+
             <div className="mt-16" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems: 'center' }}>
               <div style={{ background: 'rgba(99,102,241,0.05)', padding: 20, borderRadius: 16, borderLeft: '4px solid var(--accent-primary)', height: '100%', display: 'flex', alignItems: 'center' }}>
                 <p className="text-secondary" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
