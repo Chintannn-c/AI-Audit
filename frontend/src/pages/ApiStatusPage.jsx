@@ -179,9 +179,9 @@ export default function ApiStatusPage() {
     const isG2Live = true;
     const isG3Live = true;
 
-    // 1. Gemini 3.1 Pro (High)
+    // 1. Gemini 2.0 Flash (Primary)
     list.push({
-      name: 'Gemini 3.1 Pro (High)',
+      name: 'Gemini 2.0 Flash (Primary)',
       provider: 'Google AI',
       priority: 'Priority #1',
       status: isG1Live ? 'Live' : g1?.status ? 'Error' : 'Disabled',
@@ -195,9 +195,9 @@ export default function ApiStatusPage() {
       isCritical: !isG1Live
     });
 
-    // 2. Gemini 3.1 Pro (Low)
+    // 2. Gemini 2.0 Flash (Fallback)
     list.push({
-      name: 'Gemini 3.1 Pro (Low)',
+      name: 'Gemini 2.0 Flash (Fallback)',
       provider: 'Google AI',
       priority: 'Fallback #2',
       status: isG2Live ? 'Live' : g2?.status ? 'Error' : 'Disabled',
@@ -211,9 +211,9 @@ export default function ApiStatusPage() {
       isCritical: !isG2Live
     });
 
-    // 3. Gemini 3 Flash
+    // 3. Gemini 2.0 Flash (Backup)
     list.push({
-      name: 'Gemini 3 Flash',
+      name: 'Gemini 2.0 Flash (Backup)',
       provider: 'Google AI',
       priority: 'Fallback #3',
       status: isG3Live ? 'Live' : g3?.status ? 'Error' : 'Disabled',
@@ -231,10 +231,10 @@ export default function ApiStatusPage() {
     let orDailyUsage = 0.32;
     let orPct = 64;
 
-    // 4. Claude Sonnet 4.6 (Thinking)
+    // 4. Llama 3.3 70B Instruct (Free)
     list.push({
-      name: 'Claude Sonnet 4.6 (Thinking)',
-      provider: 'Anthropic (OR)',
+      name: 'Llama 3.3 70B Instruct',
+      provider: 'OpenRouter',
       priority: 'Gateway #1',
       status: openrouterConf && openrouterHealthy ? 'Live' : openrouterConf ? 'Rate Limited' : 'Disabled',
       color: openrouterConf && openrouterHealthy ? '#10b981' : openrouterConf ? '#f59e0b' : '#6b7280',
@@ -247,35 +247,19 @@ export default function ApiStatusPage() {
       isCritical: !openrouterConf || orPct >= 90
     });
 
-    // 5. Claude Opus 4.6 (Thinking)
+    // 5. Llama 3.3 70B SpecDec
     list.push({
-      name: 'Claude Opus 4.6 (Thinking)',
-      provider: 'Anthropic (OR)',
-      priority: 'Fallback #4',
-      status: openrouterConf && openrouterHealthy ? 'Live' : openrouterConf ? 'Rate Limited' : 'Disabled',
-      color: openrouterConf && openrouterHealthy ? '#10b981' : openrouterConf ? '#f59e0b' : '#6b7280',
+      name: 'Llama 3.3 70B SpecDec',
+      provider: 'Groq',
+      priority: 'Speed Node',
+      status: openrouterConf && openrouterHealthy ? 'Live' : 'Disabled',
+      color: openrouterConf && openrouterHealthy ? '#10b981' : '#6b7280',
       usedRequests: openrouterConf && openrouterHealthy ? Math.round(orPct * 10) : 0,
       totalRequests: 1000,
       usedPct: openrouterConf && openrouterHealthy ? orPct : 0,
       resetTime: 'Refreshes in 6 days 6 hours',
       latency: openrouterConf && openrouterHealthy ? '1.2s' : '--',
       lastActive: openrouterConf && openrouterHealthy ? '1 hour ago' : 'Offline',
-      isCritical: !openrouterConf
-    });
-
-    // 6. GPT-OSS 120B (Medium)
-    list.push({
-      name: 'GPT-OSS 120B (Medium)',
-      provider: 'OpenRouter',
-      priority: 'Backup Node',
-      status: openrouterConf && openrouterHealthy ? 'Live' : openrouterConf ? 'Rate Limited' : 'Disabled',
-      color: openrouterConf && openrouterHealthy ? '#10b981' : openrouterConf ? '#f59e0b' : '#6b7280',
-      usedRequests: openrouterConf && openrouterHealthy ? Math.round(orPct * 100) : 0,
-      totalRequests: 10000,
-      usedPct: openrouterConf && openrouterHealthy ? orPct : 0,
-      resetTime: 'Refreshes in 6 days 6 hours',
-      latency: openrouterConf && openrouterHealthy ? '380ms' : '--',
-      lastActive: openrouterConf && openrouterHealthy ? 'Active now' : 'Offline',
       isCritical: !openrouterConf
     });
 
