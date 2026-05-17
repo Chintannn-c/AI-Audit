@@ -144,25 +144,41 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
         <div 
           style={{ 
             display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 6,
             minWidth: 0
           }}
         >
-          {/* Reset countdown */}
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            {formatCountdown(model.reset_seconds)}
-          </span>
-
-          {/* Status Indicator & Latency */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Top Row: Latency + Status Badge + Expand Button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {model.latency_ms !== null && model.latency_ms !== undefined && (
-              <span style={{ fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>
+              <span 
+                style={{ 
+                  fontSize: 10, 
+                  color: '#94a3b8', 
+                  fontFamily: 'monospace',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}
+              >
                 {model.latency_ms}ms
               </span>
             )}
             
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <div 
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: 6,
+                background: statusCfg.color === '#10b981' ? 'rgba(16, 185, 129, 0.08)' : statusCfg.color === '#ef4444' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(249, 115, 22, 0.08)',
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: `1px solid ${statusCfg.color}26`
+              }}
+            >
               <span 
                 style={{
                   height: 6,
@@ -173,7 +189,7 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
                   animation: model.status === 'Live' ? 'glowPulse 2s infinite' : 'none'
                 }}
               />
-              <span style={{ fontSize: 12, fontWeight: 600, color: statusCfg.color }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: statusCfg.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 {statusCfg.label}
               </span>
             </div>
@@ -183,19 +199,27 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
               <button 
                 onClick={() => setExpanded(!expanded)}
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: 6,
                   padding: 4,
-                  color: '#475569',
+                  color: '#94a3b8',
                   cursor: 'pointer',
                   display: 'flex',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
                 }}
               >
-                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
             )}
           </div>
+
+          {/* Bottom Row: Reset Countdown */}
+          <span style={{ fontSize: 11, color: '#64748b' }}>
+            {formatCountdown(model.reset_seconds)}
+          </span>
         </div>
       </div>
 
