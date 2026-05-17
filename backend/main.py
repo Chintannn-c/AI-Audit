@@ -82,12 +82,18 @@ try:
     logs_coll = db["audit_logs"]
     print(f"[SUCCESS] Connected to MongoDB ({MONGO_DB_NAME})")
     
-    # 1. Clear IP bans on startup to prevent lock-outs during redeployment / active updates
+    # 1. Clear IP bans on startup and manually prune expired records to recover disk space
     try:
         db["ip_bans"].delete_many({})
         print("[SUCCESS] Cleared IP bans database collection on startup.")
-    except Exception as ban_err:
-        print(f"[WARNING] Failed to clear IP bans on startup: {ban_err}")
+        
+        # Manually prune expired rate limits and breaches (in case TTL index creation fails due to low disk space)
+        now_utc = datetime.now(timezone.utc)
+        del_rates = db["rate_limits"].delete_many({"expires_at": {"$lt": now_utc}})
+        del_breaches = db["rate_limit_breaches"].delete_many({"expires_at": {"$lt": now_utc}})
+        print(f"[SUCCESS] Recovered MongoDB disk space: Manually pruned {del_rates.deleted_count} expired rate limits and {del_breaches.deleted_count} breaches.")
+    except Exception as cleanup_err:
+        print(f"[WARNING] Failed to clean up database collection on startup: {cleanup_err}")
 
     # 2. Create indexes and TTL auto-purges
     try:
