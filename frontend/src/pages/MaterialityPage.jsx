@@ -17,18 +17,18 @@ const BENCHMARK_CONFIGS = {
     label: 'Net Profit Before Tax (₹)',
     placeholder: 'e.g. 50',
     rommRanges: {
-      low: [8, 9, 10],
-      medium: [5, 6, 7],
-      high: [2, 3, 4]
+      low: [8.2, 8.5, 9.0, 9.5, 10.0],
+      medium: [7.0, 7.2, 7.5, 7.8, 8.0],
+      high: [5.0, 5.5, 6.0, 6.5]
     }
   },
   NPAT: {
     label: 'Net Profit After Tax (₹)',
     placeholder: 'e.g. 40',
     rommRanges: {
-      low: [8, 9, 10],
-      medium: [5, 6, 7],
-      high: [2, 3, 4]
+      low: [8.2, 8.5, 9.0, 9.5, 10.0],
+      medium: [7.0, 7.2, 7.5, 7.8, 8.0],
+      high: [5.0, 5.5, 6.0, 6.5]
     }
   }
 }
