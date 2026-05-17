@@ -157,7 +157,24 @@ def check_rate_limit(key: str, limit: int, window_seconds: int) -> tuple:
         return False, retry_after
     return True, 0
 
+def is_internal_ip(ip: str) -> bool:
+    if not ip:
+        return True
+    # Check loopback, CGNAT, and private subnets (10.x, 192.168.x, 172.16-31.x, 100.64-127.x)
+    if ip.startswith("127.") or ip.startswith("10.") or ip.startswith("192.168.") or ip.startswith("100.64."):
+        return True
+    if ip.startswith("172."):
+        try:
+            parts = ip.split(".")
+            if len(parts) >= 2 and 16 <= int(parts[1]) <= 31:
+                return True
+        except Exception:
+            pass
+    return False
+
 def record_rate_limit_breach(ip: str):
+    if is_internal_ip(ip):
+        return
     if db is None:
         return
     breaches_coll = db["rate_limit_breaches"]
@@ -180,6 +197,8 @@ def record_rate_limit_breach(ip: str):
         )
 
 def check_ip_ban(ip: str) -> bool:
+    if is_internal_ip(ip):
+        return False
     if os.getenv("TESTING") == "1":
         return False
     if db is None:
@@ -291,6 +310,12 @@ def safe_filter(**kwargs) -> dict:
 # ──────────────────────────────────────────────
 # FastAPI Security Dependency
 # ──────────────────────────────────────────────
+def get_client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
 async def require_session(
     request: Request,
     stataudit_session_id: Optional[str] = Cookie(None),
@@ -334,7 +359,7 @@ async def require_session(
     if (expires_at and now > expires_at) or (last_activity_at and now > last_activity_at + timedelta(hours=2)):
         raise_unauthorized(start_time)
         
-    client_ip = request.client.host if request.client else ""
+    client_ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
     accept_lang = request.headers.get("Accept-Language", "")
     
@@ -379,7 +404,7 @@ async def require_session(
 async def check_rate_limits(request: Request, session: Optional[dict] = None):
     if os.getenv("TESTING") == "1":
         return
-    client_ip = request.client.host if request.client else ""
+    client_ip = get_client_ip(request)
     if check_ip_ban(client_ip):
         raise HTTPException(status_code=403, detail="Access temporarily suspended due to security rate limit breaches.")
         
@@ -423,7 +448,7 @@ async def check_rate_limits(request: Request, session: Optional[dict] = None):
 # Security Headers & Ban Filter Middleware
 @app.middleware("http")
 async def add_security_headers_and_rotation(request: Request, call_next):
-    client_ip = request.client.host if request.client else ""
+    client_ip = get_client_ip(request)
     if check_ip_ban(client_ip):
         return JSONResponse(
             status_code=403,

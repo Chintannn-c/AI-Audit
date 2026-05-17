@@ -452,7 +452,7 @@ class AuditAIEngine:
             }
             start_time = datetime.datetime.now()
             try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     model_name = "gemma-4-31b-it" if idx == 2 else "gemini-2.0-flash"
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
                     payload = {
@@ -484,8 +484,10 @@ class AuditAIEngine:
                             pass
                         model_info["is_daily_exhausted"] = is_daily
                     else:
+                        print(f"[DEBUG] Gemma/Gemini Key #{idx+1} failed with status {resp.status_code}: {resp.text}")
                         model_info["status"] = "Error"
             except Exception as e:
+                print(f"[DEBUG] Gemma/Gemini Key #{idx+1} threw exception: {type(e).__name__}: {str(e)}")
                 err_str = f"{type(e).__name__}: {str(e)}".lower()
                 if "429" in err_str or "quota" in err_str or "limit" in err_str or "exhausted" in err_str:
                     model_info["status"] = "Rate Limited"
