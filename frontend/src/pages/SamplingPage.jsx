@@ -239,6 +239,66 @@ export default function SamplingPage({ setProcessing }) {
               ))}
             </div>
 
+            {/* Vendor Repetition Audit Intelligence Card */}
+            {results.repetition_info && (
+              <div className="mt-16" style={{
+                background: 'rgba(99, 102, 241, 0.04)',
+                border: '1px solid rgba(99, 102, 241, 0.15)',
+                padding: '18px 22px',
+                borderRadius: '16px',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '24px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', fontWeight: 'bold', fontSize: '14px' }}>
+                    <span>🔍</span>
+                    <span>Vendor Repetition Analysis</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                    Statutory audit intelligence verifies the concentration of selected samples across different vendors. 
+                    No individual vendor exceeds your absolute repeat limit.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px' }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.15)', padding: '10px 14px', borderRadius: '12px' }}>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#34d399' }}>
+                        {results.repetition_info.unique_vendors_count}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Unique Vendors</div>
+                    </div>
+                    <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.15)', padding: '10px 14px', borderRadius: '12px' }}>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fbbf24' }}>
+                        {results.repetition_info.repeated_vendors_count}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Repeated Vendors</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.08)', paddingLeft: '24px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Repeated Vendors Breakdown
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto', paddingRight: '8px' }}>
+                    {results.repetition_info.repeated_vendors_details && results.repetition_info.repeated_vendors_details.length > 0 ? (
+                      results.repetition_info.repeated_vendors_details.map((detail, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.02)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                          <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 500 }}>{detail.vendor}</span>
+                          <span className="badge badge-medium" style={{ fontSize: '10px', padding: '2px 8px' }}>
+                            {detail.count} times
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', height: '100%', minHeight: '80px' }}>
+                        ✅ Absolute strict non-repetition: All selected vendors are 100% unique!
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {results.deficit_info && (
               <div className="mt-16" style={{
                 background: 'rgba(239, 68, 68, 0.08)',

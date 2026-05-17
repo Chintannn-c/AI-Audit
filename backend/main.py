@@ -778,6 +778,36 @@ async def analyze_ledger(
         scored = analyzer.score_risks()
         top_10 = scored.head(10).replace({np.nan: None}).to_dict(orient="records")
 
+        # Calculate vendor repetitions in selected samples [REP-INFO]
+        vcol = '_Norm_Vendor' if '_Norm_Vendor' in tod.columns else (analyzer.vendor_col or '')
+        rep_info = {
+            "unique_vendors_count": 0,
+            "repeated_vendors_count": 0,
+            "repeated_vendors_details": []
+        }
+        if vcol and vcol in tod.columns:
+            from collections import Counter
+            combined_vendors = []
+            if len(tod) > 0:
+                combined_vendors.extend(tod[vcol].dropna().astype(str).str.strip().str.title().tolist())
+            if len(toc) > 0:
+                combined_vendors.extend(toc[vcol].dropna().astype(str).str.strip().str.title().tolist())
+                
+            vendor_counts = Counter(combined_vendors)
+            
+            # Find unique and repeated vendors
+            unique_vendors = [vendor for vendor, count in vendor_counts.items() if count == 1]
+            repeated_vendors = {vendor: count for vendor, count in vendor_counts.items() if count > 1}
+            
+            rep_info = {
+                "unique_vendors_count": len(unique_vendors),
+                "repeated_vendors_count": len(repeated_vendors),
+                "repeated_vendors_details": [
+                    {"vendor": vendor, "count": count}
+                    for vendor, count in sorted(repeated_vendors.items(), key=lambda x: x[1], reverse=True)
+                ]
+            }
+
         response = safe_json({
             "stats": stats,
             "ai_insights": ai_insights,
@@ -791,7 +821,8 @@ async def analyze_ledger(
             "sampling_basis": sampling_basis,
             "top_10": top_10,
             "filename": clean_name,
-            "deficit_info": getattr(analyzer, "sampling_deficit", None)
+            "deficit_info": getattr(analyzer, "sampling_deficit", None),
+            "repetition_info": rep_info
         })
         
         log_audit_action(session_id, "RUN_ANALYSIS", {
