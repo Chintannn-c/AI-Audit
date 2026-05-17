@@ -18,6 +18,7 @@ class AuditAIEngine:
         'FORENSIC': {
             'description': 'Heavy Reasoning',
             'models': [
+                'groq/llama-3.3-70b-versatile',
                 'mistral/mistral-large-latest',
                 'gemma-4-31b-it',
                 'deepseek/deepseek-r1:free',
@@ -29,22 +30,23 @@ class AuditAIEngine:
         'FAST_SCAN': {
             'description': 'Fast Routing',
             'models': [
+                'groq/llama-3.1-8b-instant',
+                'groq/llama-3.3-70b-versatile',
                 'mistral/mistral-large-latest',
                 'gemma-4-31b-it',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
                 'openrouter/free',
-                'meta-llama/llama-3.3-70b-instruct:free',
             ],
         },
 
         'VOUCHING': {
             'description': 'OCR + Extraction',
             'models': [
+                'groq/llama-3.3-70b-versatile',
                 'mistral/mistral-large-latest',
                 'gemma-4-31b-it',
                 'deepseek/deepseek-r1:free',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
-                'meta-llama/llama-3.3-70b-instruct:free',
                 'openrouter/free',
             ],
         },
@@ -179,11 +181,12 @@ class AuditAIEngine:
                 continue
         return None
 
-    async def _try_groq(self, prompt):
+    async def _try_groq(self, prompt, target_model="llama-3.3-70b-versatile"):
+        model_name = target_model.replace("groq/", "")
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 payload = {
-                    "model": "llama-3.3-70b-versatile",
+                    "model": model_name,
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"}
                 }
@@ -275,7 +278,7 @@ class AuditAIEngine:
                 if provider == "gemini" and self.gemini_keys:
                     res = await self._try_gemini(prompt, file_bytes, mime_type, target_model=model_id)
                 elif provider == "groq" and self.groq_key and not is_multimodal:
-                    res = await self._try_groq(prompt)
+                    res = await self._try_groq(prompt, target_model=model_id)
                 elif provider == "mistral" and self.mistral_key and not is_multimodal:
                     res = await self._try_mistral(prompt)
                 elif self.openrouter_key:
