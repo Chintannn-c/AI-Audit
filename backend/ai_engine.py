@@ -61,6 +61,8 @@ class AuditAIEngine:
         # Self-healing and Telemetry cache
         self.dead_models = set()
         self.model_health = {}
+        self.last_telemetry = None
+        self.last_telemetry_time = None
         
         # Initialize Persistent Cache
         self.cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
@@ -396,6 +398,18 @@ class AuditAIEngine:
         import datetime
         import httpx
         
+        # Telemetry Cache: 60-second cooldown to protect low-limit API keys (like Mistral 4 RPM)
+        now_time = datetime.datetime.now()
+        if self.last_telemetry_time and self.last_telemetry and (now_time - self.last_telemetry_time).total_seconds() < 60:
+            # Dynamic countdown update for reset_seconds inside cached data
+            updated_models = []
+            for m in self.last_telemetry.get("models", []):
+                m_copy = m.copy()
+                if m_copy.get("reset_seconds"):
+                    m_copy["reset_seconds"] = max(0, m_copy["reset_seconds"] - int((now_time - self.last_telemetry_time).total_seconds()))
+                updated_models.append(m_copy)
+            return {"models": updated_models}
+
         models = []
         now_utc = datetime.datetime.now(datetime.timezone.utc)
         next_reset = (now_utc + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -640,7 +654,9 @@ class AuditAIEngine:
                     "last_active": "Active now" if model_status == "Live" else "Unavailable"
                 })
 
-        return {"models": models}
+        self.last_telemetry = {"models": models}
+        self.last_telemetry_time = datetime.datetime.now()
+        return self.last_telemetry
 
     def _clean_json(self, text: str):
         try:
