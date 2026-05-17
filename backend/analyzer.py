@@ -375,6 +375,13 @@ class AuditAnalyzer:
                     tod_indices.append(idx)
                     mark_vendor_used(row)
 
+        # CRITICAL FALLBACK FOR TOD: If still below target, allow duplicate vendors
+        if len(tod_indices) < tod_target:
+            remaining = data[~data.index.isin(tod_indices)].sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+            for idx, row in remaining.iterrows():
+                if len(tod_indices) >= tod_target: break
+                tod_indices.append(idx)
+
         # --- Stage 3: Mandatory Month Coverage for TOC (if applicable) ---
         if toc_target > 0:
             for m in months:
@@ -397,9 +404,23 @@ class AuditAnalyzer:
                     toc_indices.append(idx)
                     mark_vendor_used(row)
 
+        # CRITICAL FALLBACK FOR TOC: If still below target, allow duplicate vendors
+        if toc_target > 0 and len(toc_indices) < toc_target:
+            remaining_toc = data[~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)].sample(frac=1, random_state=42)
+            for idx, row in remaining_toc.iterrows():
+                if len(toc_indices) >= toc_target: break
+                toc_indices.append(idx)
+
         # Prepare Final DataFrames
         tod = data.loc[tod_indices].copy()
         toc = data.loc[toc_indices].copy()
+
+        # Sort final samples in descending order of absolute value of the amount column
+        if amt_col:
+            if not tod.empty:
+                tod = tod.sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
+            if not toc.empty:
+                toc = toc.sort_values(by=amt_col, ascending=False, key=lambda x: x.abs())
 
         # Add Metadata
         tod['_Audit_Procedure'] = 'Test of Details (TOD)'
