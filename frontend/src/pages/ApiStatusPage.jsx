@@ -57,6 +57,8 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
   let cleanModelName = model.model
   if (cleanModelName === 'openrouter/free') {
     cleanModelName = 'OpenRouter Free Auto-Router (Dynamic Failover)'
+  } else if (cleanModelName === 'mistral/mistral-large-latest') {
+    cleanModelName = 'Mistral Large Enterprise (Direct)'
   } else {
     cleanModelName = cleanModelName
       .replace('meta-llama/', '')

@@ -18,6 +18,7 @@ class AuditAIEngine:
         'FORENSIC': {
             'description': 'Heavy Reasoning',
             'models': [
+                'mistral/mistral-large-latest',
                 'deepseek/deepseek-r1:free',
                 'meta-llama/llama-3.3-70b-instruct:free',
                 'openrouter/free',
@@ -27,6 +28,7 @@ class AuditAIEngine:
         'FAST_SCAN': {
             'description': 'Fast Routing',
             'models': [
+                'mistral/mistral-large-latest',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
                 'openrouter/free',
                 'meta-llama/llama-3.3-70b-instruct:free',
@@ -36,6 +38,7 @@ class AuditAIEngine:
         'VOUCHING': {
             'description': 'OCR + Extraction',
             'models': [
+                'mistral/mistral-large-latest',
                 'deepseek/deepseek-r1:free',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
                 'meta-llama/llama-3.3-70b-instruct:free',
@@ -53,6 +56,7 @@ class AuditAIEngine:
         self.gemini_keys = [k for k in self.gemini_keys if k]
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        self.mistral_key = os.getenv("MISTRAL_API_KEY")
         
         # Self-healing and Telemetry cache
         self.dead_models = set()
@@ -179,11 +183,45 @@ class AuditAIEngine:
             print(f"[AI] Groq Direct failed: {e}")
             return None
 
+    async def _try_mistral(self, prompt):
+        if not self.mistral_key:
+            print("[AI] Mistral API Key not configured.")
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                payload = {
+                    "model": "mistral-large-latest",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"}
+                }
+                headers = {
+                    "Authorization": f"Bearer {self.mistral_key}",
+                    "Content-Type": "application/json"
+                }
+                resp = await client.post("https://api.mistral.ai/v1/chat/completions", json=payload, headers=headers)
+                
+                # Fallback: Try without json_object if 400
+                if resp.status_code == 400:
+                    del payload["response_format"]
+                    resp = await client.post("https://api.mistral.ai/v1/chat/completions", json=payload, headers=headers)
+                    
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return self._clean_json(data['choices'][0]['message']['content'])
+                else:
+                    print(f"[AI] Mistral Error {resp.status_code}: {resp.text}")
+            return None
+        except Exception as e:
+            print(f"[AI] Mistral Direct failed: {e}")
+            return None
+
     def detect_provider(self, model_id: str) -> str:
         if model_id.startswith("gemini-direct") or "gemini" in model_id.lower():
             return "gemini"
         if model_id.startswith("groq/") or "groq" in model_id.lower():
             return "groq"
+        if "mistral-large" in model_id.lower() or model_id.startswith("mistral/"):
+            return "mistral"
         return "openrouter"
 
     async def route_task(self, task_type: str, payload: dict) -> Optional[dict]:
@@ -224,6 +262,8 @@ class AuditAIEngine:
                     res = await self._try_gemini(prompt, file_bytes, mime_type)
                 elif provider == "groq" and self.groq_key and not is_multimodal:
                     res = await self._try_groq(prompt)
+                elif provider == "mistral" and self.mistral_key and not is_multimodal:
+                    res = await self._try_mistral(prompt)
                 elif self.openrouter_key:
                     res = await self._try_openrouter(model_id, prompt, file_bytes, mime_type, is_multimodal)
                 else:
@@ -485,7 +525,59 @@ class AuditAIEngine:
                 
             models.append(groq_model)
 
-        # 3. OpenRouter Key Check (Dynamic telemetry of all profile models)
+        # 3. Mistral Key Check (Direct)
+        if self.mistral_key:
+            mistral_model = {
+                "id": "mistral_large",
+                "model": "mistral/mistral-large-latest",
+                "provider": "Mistral AI",
+                "api_key_name": "Mistral Production Key",
+                "status": "Disabled",
+                "priority": len(self.gemini_keys) + 2,
+                "daily_limit": 10000,
+                "used_today": 0,
+                "remaining": 10000,
+                "rpm_remaining": 60,
+                "tpm_remaining": 100000,
+                "reset_seconds": reset_seconds,
+                "latency_ms": None,
+                "last_active": "Unavailable"
+            }
+            start_time = datetime.datetime.now()
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    headers = {
+                        "Authorization": f"Bearer {self.mistral_key}",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "model": "mistral-large-latest",
+                        "messages": [{"role": "user", "content": "Hi"}],
+                        "max_tokens": 5
+                    }
+                    resp = await client.post("https://api.mistral.ai/v1/chat/completions", json=payload, headers=headers)
+                    latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
+                    if resp.status_code == 200:
+                        mistral_model["status"] = "Live"
+                        mistral_model["latency_ms"] = latency
+                        mistral_model["last_active"] = "Active now"
+                        used_sim = int((1 - (reset_seconds / 86400)) * 10000 * 0.05)
+                        mistral_model["used_today"] = used_sim
+                        mistral_model["remaining"] = 10000 - used_sim
+                    else:
+                        mistral_model["status"] = f"Error {resp.status_code}"
+            except Exception:
+                mistral_model["status"] = "Connection Failed"
+                
+            if mistral_model["status"] in ("Rate Limited", "Connection Failed") or "Error" in mistral_model["status"]:
+                mistral_model["used_today"] = 10000
+                mistral_model["remaining"] = 0
+                mistral_model["rpm_remaining"] = 0
+                mistral_model["tpm_remaining"] = 0
+                
+            models.append(mistral_model)
+
+        # 4. OpenRouter Key Check (Dynamic telemetry of all profile models)
         if self.openrouter_key:
             masked_key = f"{self.openrouter_key[:14]}..." if len(self.openrouter_key) > 14 else "Key"
             
@@ -521,6 +613,9 @@ class AuditAIEngine:
 
             # Dynamically map and render all OpenRouter models
             for idx, router_model in enumerate(sorted(list(all_profile_models))):
+                if "mistral/" in router_model:
+                    # Skip direct Mistral models in the OpenRouter list
+                    continue
                 if router_model in self.dead_models:
                     model_status = "Rate Limited" # quarantined models show warning alert
                     model_latency = None
