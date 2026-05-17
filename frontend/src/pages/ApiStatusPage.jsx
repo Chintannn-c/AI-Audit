@@ -39,7 +39,7 @@ const getStatusConfig = (statusStr) => {
 // Memoized individual model row component for premium performance
 const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
   const [expanded, setExpanded] = useState(false)
-  const isErrorState = model.status.toLowerCase().includes('error') || model.status.toLowerCase().includes('fail')
+  const hasDiagnosticWarning = model.status !== 'Live'
   
   // Real limit percentages
   const usedPercent = model.daily_limit > 0 ? (model.used_today / model.daily_limit) * 100 : 0
@@ -179,7 +179,7 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
             </div>
 
             {/* Expandable diagnostic info if error exists */}
-            {isErrorState && (
+            {hasDiagnosticWarning && (
               <button 
                 onClick={() => setExpanded(!expanded)}
                 style={{
@@ -200,22 +200,25 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
       </div>
 
       {/* Expanded diagnostic tray */}
-      {isErrorState && expanded && (
+      {hasDiagnosticWarning && expanded && (
         <div 
           style={{
             marginTop: 12,
             padding: 10,
-            background: 'rgba(239, 68, 68, 0.05)',
-            border: '1px solid rgba(239, 68, 68, 0.1)',
+            background: model.status === 'Rate Limited' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+            border: model.status === 'Rate Limited' ? '1px solid rgba(245, 158, 11, 0.1)' : '1px solid rgba(239, 68, 68, 0.1)',
             borderRadius: 6,
             display: 'flex',
             alignItems: 'flex-start',
             gap: 8
           }}
         >
-          <AlertCircle size={14} style={{ color: '#ef4444', marginTop: 2, flexShrink: 0 }} />
-          <div style={{ fontSize: 11, color: '#f87171', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-            Diagnostic warning: Endpoint currently unreachable. The self-healing router has automatically isolated this node to prevent downstream query latency.
+          <AlertCircle size={14} style={{ color: model.status === 'Rate Limited' ? '#f59e0b' : '#ef4444', marginTop: 2, flexShrink: 0 }} />
+          <div style={{ fontSize: 11, color: model.status === 'Rate Limited' ? '#fbbf24' : '#f87171', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+            {model.status === 'Rate Limited' 
+              ? 'Diagnostic warning: Request limit reached. The self-healing router has automatically quarantined this node to prevent query latency.'
+              : 'Diagnostic warning: Endpoint currently unreachable. The self-healing router has automatically isolated this node to prevent downstream query latency.'
+            }
           </div>
         </div>
       )}
