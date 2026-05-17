@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSession } from '../context/SessionContext'
-import { 
-  Activity, RefreshCw, AlertTriangle, ShieldCheck, 
-  Play, Settings, Power, FileText, Trash2, Cpu, 
+import {
+  Activity, RefreshCw, AlertTriangle, ShieldCheck,
+  Play, Settings, Power, FileText, Trash2, Cpu,
   ToggleLeft, ToggleRight, Radio, Server, CheckCircle2,
   Clock, Database, ArrowRight, Zap, Network
 } from 'lucide-react'
@@ -38,10 +38,10 @@ const Sparkline = ({ active, statusColor }) => {
         style={{ transition: 'all 0.5s ease-in-out' }}
       />
       {active && (
-        <circle 
-          cx={(points.length - 1) * 8} 
-          cy={30 - points[points.length - 1]} 
-          r="2.5" 
+        <circle
+          cx={(points.length - 1) * 8}
+          cy={30 - points[points.length - 1]}
+          r="2.5"
           fill={statusColor}
           className="animate-ping"
         />
@@ -133,13 +133,13 @@ export default function ApiStatusPage() {
                   height: 18,
                   borderRadius: 2,
                   background: color,
-                  boxShadow: isFilled && !isCritical && percentUsed < 80 
-                    ? '0 0 6px rgba(99, 102, 241, 0.4)' 
-                    : isFilled && percentUsed >= 80 && !isCritical 
-                    ? '0 0 6px rgba(234, 179, 8, 0.4)'
-                    : isFilled && isCritical
-                    ? '0 0 6px rgba(239, 68, 68, 0.4)'
-                    : 'none',
+                  boxShadow: isFilled && !isCritical && percentUsed < 80
+                    ? '0 0 6px rgba(99, 102, 241, 0.4)'
+                    : isFilled && percentUsed >= 80 && !isCritical
+                      ? '0 0 6px rgba(234, 179, 8, 0.4)'
+                      : isFilled && isCritical
+                        ? '0 0 6px rgba(239, 68, 68, 0.4)'
+                        : 'none',
                   transition: 'all 0.3s ease'
                 }}
               />
@@ -157,7 +157,7 @@ export default function ApiStatusPage() {
   const testConnection = (modelName) => {
     setTestingModel(modelName);
     setLogsText(prev => [`[${new Date().toLocaleTimeString()}] Initializing handshake with ${modelName}...`, ...prev]);
-    
+
     setTimeout(() => {
       setTestingModel(null);
       setLogsText(prev => [
@@ -275,7 +275,7 @@ export default function ApiStatusPage() {
 
   return (
     <section className="content-section" style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
-      
+
       {/* Tiny network decoration graph inside the background */}
       <div style={{ position: 'absolute', top: 0, right: 0, left: 0, bottom: 0, pointerEvents: 'none', opacity: 0.03, zIndex: 0 }}>
         <svg width="100%" height="100%">
@@ -290,7 +290,7 @@ export default function ApiStatusPage() {
 
       {/* Main Container */}
       <div style={{ position: 'relative', zIndex: 1 }}>
-        
+
         {/* Header Action Dashboard */}
         <div className="section-header mb-32" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -305,16 +305,16 @@ export default function ApiStatusPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
             {/* Failover Selector Switch */}
-            <div 
+            <div
               onClick={() => setAutoFailover(!autoFailover)}
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8, 
-                padding: '8px 14px', 
-                background: 'rgba(255,255,255,0.02)', 
-                border: '1px solid var(--glass-border)', 
-                borderRadius: 12, 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 14px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: 12,
                 cursor: 'pointer',
                 transition: 'all 0.3s ease'
               }}
@@ -350,7 +350,7 @@ export default function ApiStatusPage() {
 
         {/* Global Cluster Stats Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, marginBottom: 28 }}>
-          
+
           <div className="glass-card" style={{ padding: 18, background: 'rgba(6, 8, 22, 0.45)', border: '1px solid var(--glass-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="text-muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Global Health</span>
@@ -400,7 +400,7 @@ export default function ApiStatusPage() {
             Real-time Failover Routing Topography
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '10px 0', overflowX: 'auto', gap: 16 }}>
-            
+
             <div style={{ textAlign: 'center', padding: '8px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Core Request</div>
               <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>Vouching / Scan</strong>
@@ -408,12 +408,12 @@ export default function ApiStatusPage() {
 
             <ArrowRight size={16} className="text-muted" />
 
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '8px 16px', 
-              background: liveCount > 0 ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', 
-              border: liveCount > 0 ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)', 
-              borderRadius: 10 
+            <div style={{
+              textAlign: 'center',
+              padding: '8px 16px',
+              background: liveCount > 0 ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)',
+              border: liveCount > 0 ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 10
             }}>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: liveCount > 0 ? '#10b981' : 'var(--danger)' }}>Gemini Pro</div>
               <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>Primary (Priority #1)</strong>
@@ -421,12 +421,12 @@ export default function ApiStatusPage() {
 
             <ArrowRight size={16} className="text-muted" style={{ animation: autoFailover ? 'pulseStep 1s infinite' : 'none' }} />
 
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '8px 16px', 
-              background: isG3Live ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', 
-              border: isG3Live ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)', 
-              borderRadius: 10 
+            <div style={{
+              textAlign: 'center',
+              padding: '8px 16px',
+              background: isG3Live ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)',
+              border: isG3Live ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 10
             }}>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: isG3Live ? '#10b981' : 'var(--danger)' }}>Gemini Flash</div>
               <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>Fallback (Fallback #3)</strong>
@@ -434,12 +434,12 @@ export default function ApiStatusPage() {
 
             <ArrowRight size={16} className="text-muted" />
 
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '8px 16px', 
-              background: openrouterConf && openrouterHealthy ? 'rgba(16,185,129,0.05)' : 'rgba(255,255,255,0.02)', 
-              border: openrouterConf && openrouterHealthy ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(255,255,255,0.06)', 
-              borderRadius: 10 
+            <div style={{
+              textAlign: 'center',
+              padding: '8px 16px',
+              background: openrouterConf && openrouterHealthy ? 'rgba(16,185,129,0.05)' : 'rgba(255,255,255,0.02)',
+              border: openrouterConf && openrouterHealthy ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10
             }}>
               <div style={{ fontSize: 10, textTransform: 'uppercase', color: openrouterConf && openrouterHealthy ? '#10b981' : 'var(--text-muted)' }}>OpenRouter API</div>
               <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>Gateway (Claude / Llama)</strong>
@@ -451,7 +451,7 @@ export default function ApiStatusPage() {
         {/* Real-time active model infrastructure matrix list */}
         <div className="glass-card" style={{ padding: '8px 24px', background: 'rgba(6, 8, 22, 0.45)', border: '1px solid var(--glass-border)' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            
+
             {models.map((m, idx) => {
               const isTesting = testingModel === m.name;
               const hasAlert = m.isCritical || m.status !== 'Live';
@@ -469,18 +469,18 @@ export default function ApiStatusPage() {
                   }}
                   className="model-infra-row"
                 >
-                  
+
                   {/* Model Name & alert badge */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <strong style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{m.name}</strong>
                       {hasAlert && (
-                        <AlertTriangle 
-                          size={14} 
-                          style={{ 
+                        <AlertTriangle
+                          size={14}
+                          style={{
                             color: m.status === 'Error' ? 'var(--danger)' : 'var(--warning)',
                             filter: `drop-shadow(0 0 4px ${m.status === 'Error' ? 'rgba(239,68,68,0.4)' : 'rgba(234,179,8,0.4)'})`
-                          }} 
+                          }}
                         />
                       )}
                     </div>
@@ -497,15 +497,15 @@ export default function ApiStatusPage() {
                   {/* Live Status indicator */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span 
-                        style={{ 
-                          height: 7, 
-                          width: 7, 
-                          borderRadius: '50%', 
+                      <span
+                        style={{
+                          height: 7,
+                          width: 7,
+                          borderRadius: '50%',
                           background: m.color,
                           boxShadow: `0 0 8px ${m.color}`,
                           animation: m.status === 'Live' ? 'glowPulse 2s infinite' : 'none'
-                        }} 
+                        }}
                       />
                       <span style={{ fontSize: 12, fontWeight: 700, color: m.color }}>{m.status}</span>
                     </div>
@@ -538,16 +538,16 @@ export default function ApiStatusPage() {
 
                   {/* Hover Actions Menu */}
                   <div style={{ display: 'flex', justifySelf: 'end', gap: 6 }}>
-                    
-                    <button 
-                      onClick={() => testConnection(m.name)} 
+
+                    <button
+                      onClick={() => testConnection(m.name)}
                       disabled={isTesting || m.status === 'Disabled'}
                       title="Test Connection"
-                      style={{ 
-                        background: isTesting ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)', 
-                        border: '1px solid var(--glass-border)', 
-                        borderRadius: 8, 
-                        padding: 6, 
+                      style={{
+                        background: isTesting ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: 8,
+                        padding: 6,
                         color: 'var(--text-secondary)',
                         cursor: 'pointer',
                         transition: 'all 0.3s ease'
@@ -557,7 +557,7 @@ export default function ApiStatusPage() {
                       <Play size={12} className={isTesting ? 'animate-spin' : ''} />
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => {
                         setShowLogs(m.name);
                         setLogsText(prev => [
@@ -567,11 +567,11 @@ export default function ApiStatusPage() {
                         ]);
                       }}
                       title="Show Logs"
-                      style={{ 
-                        background: 'rgba(255,255,255,0.02)', 
-                        border: '1px solid var(--glass-border)', 
-                        borderRadius: 8, 
-                        padding: 6, 
+                      style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: 8,
+                        padding: 6,
                         color: 'var(--text-secondary)',
                         cursor: 'pointer'
                       }}
@@ -580,13 +580,13 @@ export default function ApiStatusPage() {
                       <FileText size={12} />
                     </button>
 
-                    <button 
+                    <button
                       title="Settings"
-                      style={{ 
-                        background: 'rgba(255,255,255,0.02)', 
-                        border: '1px solid var(--glass-border)', 
-                        borderRadius: 8, 
-                        padding: 6, 
+                      style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: 8,
+                        padding: 6,
                         color: 'var(--text-secondary)',
                         cursor: 'pointer'
                       }}
@@ -610,14 +610,14 @@ export default function ApiStatusPage() {
             <FileText size={14} />
             Live Infrastructure Logs & Handshake Telemetry
           </h3>
-          <div style={{ 
-            height: 120, 
-            background: 'rgba(0,0,0,0.3)', 
-            borderRadius: 10, 
-            padding: 14, 
-            fontFamily: 'Consolas, monospace', 
-            fontSize: 11, 
-            color: '#38bdf8', 
+          <div style={{
+            height: 120,
+            background: 'rgba(0,0,0,0.3)',
+            borderRadius: 10,
+            padding: 14,
+            fontFamily: 'Consolas, monospace',
+            fontSize: 11,
+            color: '#38bdf8',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
