@@ -530,6 +530,8 @@ class AuditAIEngine:
                         used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.12)
                         groq_model["used_today"] = used_sim
                         groq_model["remaining"] = 14400 - used_sim
+                    elif resp.status_code == 429:
+                        groq_model["status"] = "Rate Limited"
                     else:
                         groq_model["status"] = f"Error {resp.status_code}"
             except Exception:
@@ -588,6 +590,8 @@ class AuditAIEngine:
                         used_sim = int((1 - (reset_seconds / 86400)) * 10000 * 0.05)
                         mistral_model["used_today"] = used_sim
                         mistral_model["remaining"] = 10000 - used_sim
+                    elif resp.status_code == 429:
+                        mistral_model["status"] = "Rate Limited"
                     else:
                         mistral_model["status"] = f"Error {resp.status_code}"
             except Exception:
