@@ -12,6 +12,7 @@ import RiskPage from './pages/RiskPage'
 import SamplingPage from './pages/SamplingPage'
 import VouchingPage from './pages/VouchingPage'
 import ReportsPage from './pages/ReportsPage'
+import ApiStatusPage from './pages/ApiStatusPage'
 
 const STAGE_MAP = {
   '/': 0,
@@ -19,7 +20,8 @@ const STAGE_MAP = {
   '/risk': 2,
   '/sampling': 3,
   '/vouching': 4,
-  '/reports': 5
+  '/reports': 5,
+  '/api-status': 0
 }
 
 const STAGE_NAMES = {
@@ -102,6 +104,7 @@ export default function App() {
               <Route path="/sampling" element={<SamplingPage setProcessing={setProcessing} />} />
               <Route path="/vouching" element={<VouchingPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/api-status" element={<ApiStatusPage />} />
             </Routes>
           </div>
         </main>

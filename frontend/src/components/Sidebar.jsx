@@ -1,5 +1,5 @@
 import { useSession } from '../context/SessionContext'
-import { Calculator, ClipboardList, Layers, Search, FileText, Home, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Calculator, ClipboardList, Layers, Search, FileText, Home, RefreshCw, ShieldCheck, Key } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 const NAV_ITEMS = [
@@ -8,7 +8,8 @@ const NAV_ITEMS = [
   { path: '/risk', label: 'Classification', icon: ClipboardList, stage: 2 },
   { path: '/sampling', label: 'Sampling', icon: Layers, stage: 3 },
   { path: '/vouching', label: 'Vouching', icon: Search, stage: 4 },
-  { path: '/reports', label: 'Reports', icon: FileText, stage: 5, section: 'Analysis' }
+  { path: '/reports', label: 'Reports', icon: FileText, stage: 5, section: 'Analysis' },
+  { path: '/api-status', label: 'AI Status', icon: Key, stage: 0 }
 ]
 
 export default function Sidebar({ collapsed, currentPath, navigateTo, maxUnlockedStage }) {

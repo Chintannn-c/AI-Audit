@@ -296,6 +296,94 @@ class AuditAIEngine:
         prompt = f"Forensic audit of {category} transaction: {json.dumps(transaction)}. Return JSON with 'risk_level', 'remark', 'recommended_action'."
         return await self.ensemble_consensus(prompt)
 
+    async def check_keys_status(self) -> dict:
+        import datetime
+        import httpx
+        
+        # 1. OpenRouter Key Check
+        openrouter_status = {
+            "configured": bool(self.openrouter_key),
+            "status": "Not Configured",
+            "label": "N/A",
+            "limit": None,
+            "limit_remaining": None,
+            "usage": 0,
+            "usage_daily": 0,
+            "is_free_tier": True,
+            "error_detail": None,
+            "next_reset_seconds": 0,
+            "next_reset_time": "N/A"
+        }
+        
+        if self.openrouter_key:
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    headers = {"Authorization": f"Bearer {self.openrouter_key}"}
+                    resp = await client.get("https://openrouter.ai/api/v1/key", headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json().get("data", {})
+                        openrouter_status.update({
+                            "status": "Healthy & Active",
+                            "label": data.get("label", "Default Key"),
+                            "limit": data.get("limit"),
+                            "limit_remaining": data.get("limit_remaining"),
+                            "usage": data.get("usage", 0),
+                            "usage_daily": data.get("usage_daily", 0),
+                            "is_free_tier": data.get("is_free_tier", True),
+                        })
+                    else:
+                        openrouter_status["status"] = f"Error {resp.status_code}"
+                        openrouter_status["error_detail"] = resp.text
+            except Exception as e:
+                openrouter_status["status"] = "Connection Failed"
+                openrouter_status["error_detail"] = str(e)
+            
+            # Calculate daily reset time (00:00 UTC)
+            try:
+                now_utc = datetime.datetime.now(datetime.timezone.utc)
+                next_reset = (now_utc + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                time_to_reset = next_reset - now_utc
+                openrouter_status["next_reset_seconds"] = int(time_to_reset.total_seconds())
+                openrouter_status["next_reset_time"] = next_reset.strftime("%Y-%m-%d %H:%M:%S UTC")
+            except Exception:
+                pass
+
+        # 2. Gemini Keys Check
+        gemini_statuses = []
+        for idx, key in enumerate(self.gemini_keys):
+            masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "Invalid Key"
+            status_item = {
+                "key_index": idx + 1,
+                "masked_key": masked_key,
+                "status": "Checking...",
+                "error_detail": None
+            }
+            try:
+                client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha', 'timeout': 5.0})
+                resp = await client.aio.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents="Hi"
+                )
+                if resp and resp.text:
+                    status_item["status"] = "Healthy & Active"
+                else:
+                    status_item["status"] = "No Response"
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "quota" in err_str.lower() or "limit" in err_str.lower():
+                    status_item["status"] = "Rate Limited (429)"
+                elif "400" in err_str or "api key" in err_str.lower() or "invalid" in err_str.lower():
+                    status_item["status"] = "Invalid Key"
+                else:
+                    status_item["status"] = "Error"
+                status_item["error_detail"] = err_str
+            gemini_statuses.append(status_item)
+
+        return {
+            "openrouter": openrouter_status,
+            "gemini_keys": gemini_statuses
+        }
+
     def _clean_json(self, text: str):
         try:
             clean = text.strip()

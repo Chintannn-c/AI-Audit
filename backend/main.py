@@ -704,6 +704,15 @@ async def setup_risk(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/api/key-status")
+async def check_api_key_status(session: dict = Depends(require_session)):
+    try:
+        status_data = await ai_engine.check_keys_status()
+        return JSONResponse(status_data)
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/analyze")
 async def analyze_ledger(
     file: UploadFile = File(...),
