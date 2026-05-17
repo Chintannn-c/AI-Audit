@@ -1,5 +1,9 @@
 /* StatAudit AI Enterprise Theme System */
 
+/* ==========================================================================
+   DARK THEMES (1-7)
+   ========================================================================== */
+
 /* ─── 1. MIDNIGHT INDIGO (Default Cybernetic Theme) ─── */
 :root {
     --bg-midnight: #020617;
@@ -23,29 +27,7 @@
     --gradient-color-2: rgba(168, 85, 247, 0.12);
 }
 
-/* ─── 2. ONE DARK PRO (Developer Favorite Blue-Gray) ─── */
-[data-theme="onedark"] {
-    --bg-midnight: #181a1f;
-    --bg-navy: #21252b;
-    --glass: rgba(33, 37, 43, 0.75);
-    --bg-dark: #181a1f;
-    --bg-card: rgba(33, 37, 43, 0.75);
-    --accent-primary: #61afef;
-    --accent-secondary: #c678dd;
-    --accent-glow: rgba(97, 175, 239, 0.4);
-    --text-primary: #abb2bf;
-    --text-secondary: #828997;
-    --text-muted: #5c6370;
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --success: #98c379;
-    --warning: #d19a66;
-    --danger: #e06c75;
-    
-    --gradient-color-1: rgba(97, 175, 239, 0.1);
-    --gradient-color-2: rgba(198, 120, 221, 0.1);
-}
-
-/* ─── 3. CYBERPUNK NEON (Electric Synthwave Glow) ─── */
+/* ─── 2. CYBERPUNK NEON (Electric Synthwave Glow) ─── */
 [data-theme="cyberpunk"] {
     --bg-midnight: #080112;
     --bg-navy: #130324;
@@ -67,73 +49,7 @@
     --gradient-color-2: rgba(6, 182, 212, 0.12);
 }
 
-/* ─── 4. GLASS EMERALD (Premium Dynamic Mint) ─── */
-[data-theme="emerald"] {
-    --bg-midnight: #020806;
-    --bg-navy: #091a14;
-    --glass: rgba(9, 26, 20, 0.7);
-    --bg-dark: #020806;
-    --bg-card: rgba(9, 26, 20, 0.7);
-    --accent-primary: #10b981;
-    --accent-secondary: #34d399;
-    --accent-glow: rgba(16, 185, 129, 0.4);
-    --text-primary: #ecfdf5;
-    --text-secondary: #a7f3d0;
-    --text-muted: #6ee7b7;
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --success: #34d399;
-    --warning: #fbbf24;
-    --danger: #f87171;
-    
-    --gradient-color-1: rgba(16, 185, 129, 0.12);
-    --gradient-color-2: rgba(52, 211, 153, 0.12);
-}
-
-/* ─── 5. AMOLED BLACK (Pure OLED Darkness) ─── */
-[data-theme="amoled"] {
-    --bg-midnight: #000000;
-    --bg-navy: #0a0a0a;
-    --glass: rgba(15, 15, 15, 0.85);
-    --bg-dark: #000000;
-    --bg-card: rgba(15, 15, 15, 0.85);
-    --accent-primary: #f4f4f5;
-    --accent-secondary: #a1a1aa;
-    --accent-glow: rgba(255, 255, 255, 0.15);
-    --text-primary: #fafafa;
-    --text-secondary: #d4d4d8;
-    --text-muted: #71717a;
-    --glass-border: rgba(255, 255, 255, 0.06);
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    
-    --gradient-color-1: rgba(255, 255, 255, 0.02);
-    --gradient-color-2: rgba(255, 255, 255, 0.01);
-}
-
-/* ─── 6. AURORA GRADIENT (Multicolor Glow) ─── */
-[data-theme="aurora"] {
-    --bg-midnight: #050515;
-    --bg-navy: #0b0c24;
-    --glass: rgba(11, 12, 36, 0.75);
-    --bg-dark: #050515;
-    --bg-card: rgba(11, 12, 36, 0.75);
-    --accent-primary: #38bdf8;
-    --accent-secondary: #fb7185;
-    --accent-glow: rgba(56, 189, 248, 0.4);
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --success: #34d399;
-    --warning: #fbbf24;
-    --danger: #fb7185;
-    
-    --gradient-color-1: rgba(56, 189, 248, 0.15);
-    --gradient-color-2: rgba(251, 113, 133, 0.15);
-}
-
-/* ─── 7. DRACULA PURPLE (Classic Hacker Aesthetic) ─── */
+/* ─── 3. DRACULA PURPLE (Classic Hacker Aesthetic) ─── */
 [data-theme="dracula"] {
     --bg-midnight: #282a36;
     --bg-navy: #1e1f29;
@@ -144,8 +60,8 @@
     --accent-secondary: #ff79c6;
     --accent-glow: rgba(189, 147, 249, 0.4);
     --text-primary: #f8f8f2;
-    --text-secondary: #6272a4;
-    --text-muted: #44475a;
+    --text-secondary: #a2b1e1;
+    --text-muted: #6272a4;
     --glass-border: rgba(255, 255, 255, 0.08);
     --success: #50fa7b;
     --warning: #ffb86c;
@@ -155,7 +71,7 @@
     --gradient-color-2: rgba(255, 121, 198, 0.1);
 }
 
-/* ─── 8. TOKYO NIGHT (Neon Navy Developer Palette) ─── */
+/* ─── 4. TOKYO NIGHT (Neon Navy Developer Palette) ─── */
 [data-theme="tokyo"] {
     --bg-midnight: #1a1b26;
     --bg-navy: #16161e;
@@ -167,7 +83,7 @@
     --accent-glow: rgba(122, 162, 247, 0.4);
     --text-primary: #a9b1d6;
     --text-secondary: #565f89;
-    --text-muted: #383a40;
+    --text-muted: #444b6a;
     --glass-border: rgba(255, 255, 255, 0.08);
     --success: #9ece6a;
     --warning: #e0af68;
@@ -177,7 +93,7 @@
     --gradient-color-2: rgba(187, 154, 247, 0.12);
 }
 
-/* ─── 9. NORD FROST (Arctic Minimal Contrast) ─── */
+/* ─── 5. NORD FROST (Arctic Minimal Contrast) ─── */
 [data-theme="nord"] {
     --bg-midnight: #2e3440;
     --bg-navy: #242933;
@@ -188,8 +104,8 @@
     --accent-secondary: #81a1c1;
     --accent-glow: rgba(136, 192, 208, 0.35);
     --text-primary: #d8dee9;
-    --text-secondary: #4c566a;
-    --text-muted: #3b4252;
+    --text-secondary: #9aa7bd;
+    --text-muted: #4c566a;
     --glass-border: rgba(255, 255, 255, 0.06);
     --success: #a3be8c;
     --warning: #ebcb8b;
@@ -199,24 +115,152 @@
     --gradient-color-2: rgba(129, 161, 193, 0.08);
 }
 
-/* ─── 10. SUNSET CRIMSON (Rich Warm Gradient Rose) ─── */
-[data-theme="sunset"] {
-    --bg-midnight: #0c0205;
-    --bg-navy: #1f050e;
-    --glass: rgba(31, 5, 14, 0.75);
-    --bg-dark: #0c0205;
-    --bg-card: rgba(31, 5, 14, 0.75);
-    --accent-primary: #f43f5e;
-    --accent-secondary: #fb7185;
-    --accent-glow: rgba(244, 63, 94, 0.4);
-    --text-primary: #fff1f2;
-    --text-secondary: #fecdd3;
-    --text-muted: #fda4af;
-    --glass-border: rgba(255, 255, 255, 0.08);
+/* ─── 6. AMOLED BLACK (Pure OLED Darkness) ─── */
+[data-theme="amoled"] {
+    --bg-midnight: #000000;
+    --bg-navy: #0a0a0a;
+    --glass: rgba(15, 15, 15, 0.85);
+    --bg-dark: #000000;
+    --bg-card: rgba(15, 15, 15, 0.85);
+    --accent-primary: #fafafa;
+    --accent-secondary: #a1a1aa;
+    --accent-glow: rgba(255, 255, 255, 0.15);
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-muted: #52525b;
+    --glass-border: rgba(255, 255, 255, 0.06);
     --success: #10b981;
     --warning: #f59e0b;
-    --danger: #fb7185;
+    --danger: #ef4444;
     
-    --gradient-color-1: rgba(244, 63, 94, 0.12);
-    --gradient-color-2: rgba(251, 113, 133, 0.12);
+    --gradient-color-1: rgba(255, 255, 255, 0.02);
+    --gradient-color-2: rgba(255, 255, 255, 0.01);
+}
+
+/* ─── 7. ONE DARK PRO (Developer Favorite Blue-Gray) ─── */
+[data-theme="onedark"] {
+    --bg-midnight: #181a1f;
+    --bg-navy: #21252b;
+    --glass: rgba(33, 37, 43, 0.75);
+    --bg-dark: #181a1f;
+    --bg-card: rgba(33, 37, 43, 0.75);
+    --accent-primary: #61afef;
+    --accent-secondary: #c678dd;
+    --accent-glow: rgba(97, 175, 239, 0.4);
+    --text-primary: #abb2bf;
+    --text-secondary: #828997;
+    --text-muted: #5c6370;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --success: #98c379;
+    --warning: #d19a66;
+    --danger: #e06c75;
+    
+    --gradient-color-1: rgba(97, 175, 239, 0.1);
+    --gradient-color-2: rgba(198, 120, 221, 0.1);
+}
+
+
+/* ==========================================================================
+   LIGHT THEMES (8-10)
+   ========================================================================== */
+
+/* ─── 8. ARCTIC WHITE (Apple/Notion-Style Minimal UI) ─── */
+[data-theme="arctic"] {
+    --bg-midnight: #ffffff;
+    --bg-navy: #f8fafc;
+    --glass: rgba(255, 255, 255, 0.85);
+    --bg-dark: #ffffff;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --accent-primary: #0071e3;
+    --accent-secondary: #86868b;
+    --accent-glow: rgba(0, 113, 227, 0.2);
+    --text-primary: #1d1d1f;
+    --text-secondary: #475569;
+    --text-muted: #86868b;
+    --glass-border: rgba(15, 23, 42, 0.08);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ff453a;
+    
+    --gradient-color-1: rgba(0, 113, 227, 0.03);
+    --gradient-color-2: rgba(134, 134, 139, 0.03);
+}
+
+/* ─── 9. FROST GLASS (Soft Glassmorphism Light) ─── */
+[data-theme="frostglass"] {
+    --bg-midnight: #f1f5f9;
+    --bg-navy: #e2e8f0;
+    --glass: rgba(255, 255, 255, 0.6);
+    --bg-dark: #f1f5f9;
+    --bg-card: rgba(255, 255, 255, 0.6);
+    --accent-primary: #4f46e5;
+    --accent-secondary: #06b6d4;
+    --accent-glow: rgba(79, 70, 229, 0.15);
+    --text-primary: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --success: #10b981;
+    --warning: #fbbf24;
+    --danger: #ef4444;
+    
+    --gradient-color-1: rgba(79, 70, 229, 0.04);
+    --gradient-color-2: rgba(6, 182, 212, 0.04);
+}
+
+/* ─── 10. SOFT SAND (Warm Beige Modern Productivity) ─── */
+[data-theme="softsand"] {
+    --bg-midnight: #fbfbf8;
+    --bg-navy: #f5f5f0;
+    --glass: rgba(250, 250, 246, 0.8);
+    --bg-dark: #fbfbf8;
+    --bg-card: rgba(250, 250, 246, 0.8);
+    --accent-primary: #8f5e3b;
+    --accent-secondary: #d4a373;
+    --accent-glow: rgba(143, 94, 59, 0.2);
+    --text-primary: #2f2519;
+    --text-secondary: #5c4d3c;
+    --text-muted: #8c7b68;
+    --glass-border: rgba(47, 37, 25, 0.08);
+    --success: #606c38;
+    --warning: #dda15e;
+    --danger: #bc6c25;
+    
+    --gradient-color-1: rgba(143, 94, 59, 0.04);
+    --gradient-color-2: rgba(212, 163, 115, 0.04);
+}
+
+/* Fix global text input & select color states for Light Mode compatibility */
+[data-theme="arctic"] .glass-input,
+[data-theme="frostglass"] .glass-input,
+[data-theme="softsand"] .glass-input,
+[data-theme="arctic"] select.glass-input option,
+[data-theme="frostglass"] select.glass-input option,
+[data-theme="softsand"] select.glass-input option {
+    color: var(--text-primary) !important;
+    background-color: var(--bg-card) !important;
+}
+
+[data-theme="arctic"] .nav-link:hover,
+[data-theme="frostglass"] .nav-link:hover,
+[data-theme="softsand"] .nav-link:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="arctic"] .nav-link.active,
+[data-theme="frostglass"] .nav-link.active,
+[data-theme="softsand"] .nav-link.active {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--accent-primary);
+}
+
+[data-theme="arctic"] .tab-btn:hover,
+[data-theme="frostglass"] .tab-btn:hover,
+[data-theme="softsand"] .tab-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="arctic"] .tab-btn.active,
+[data-theme="frostglass"] .tab-btn.active,
+[data-theme="softsand"] .tab-btn.active {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--accent-primary);
 }

@@ -74,27 +74,19 @@ export default function Sidebar({ collapsed, currentPath, navigateTo, maxUnlocke
             className="glass-input"
             style={{ padding: '6px 10px', fontSize: 12, background: 'rgba(15,23,42,0.6)', borderRadius: 8, width: '100%' }}
           >
-            <optgroup label="Default" style={{ background: '#1e1b4b', color: '#fff' }}>
+            <optgroup label="Dark Themes" style={{ background: '#1e1b4b', color: '#fff' }}>
               <option value="default">Midnight Indigo</option>
-            </optgroup>
-            <optgroup label="Developer Favorite" style={{ background: '#1e1b4b', color: '#fff' }}>
-              <option value="onedark">One Dark Pro</option>
+              <option value="cyberpunk">Cyberpunk Neon</option>
               <option value="dracula">Dracula Purple</option>
               <option value="tokyo">Tokyo Night</option>
               <option value="nord">Nord Frost</option>
-            </optgroup>
-            <optgroup label="Futuristic" style={{ background: '#1e1b4b', color: '#fff' }}>
-              <option value="cyberpunk">Cyberpunk Neon</option>
-            </optgroup>
-            <optgroup label="Premium" style={{ background: '#1e1b4b', color: '#fff' }}>
-              <option value="emerald">Glass Emerald</option>
-              <option value="sunset">Sunset Crimson</option>
-            </optgroup>
-            <optgroup label="Battery Saver" style={{ background: '#1e1b4b', color: '#fff' }}>
               <option value="amoled">AMOLED Black</option>
+              <option value="onedark">One Dark Pro</option>
             </optgroup>
-            <optgroup label="Colorful" style={{ background: '#1e1b4b', color: '#fff' }}>
-              <option value="aurora">Aurora Gradient</option>
+            <optgroup label="Light Themes" style={{ background: '#1e1b4b', color: '#fff' }}>
+              <option value="arctic">Arctic White</option>
+              <option value="frostglass">Frost Glass</option>
+              <option value="softsand">Soft Sand</option>
             </optgroup>
           </select>
         </div>
