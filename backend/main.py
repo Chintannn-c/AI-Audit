@@ -686,6 +686,12 @@ async def setup_risk(
     try:
         engine = RiskAssessmentEngine(turnover_250, ifc, governance, misstatements)
         res = engine.assess()
+        res.update({
+            "turnover_250": turnover_250,
+            "ifc": ifc,
+            "governance": governance,
+            "misstatements": misstatements
+        })
         
         if sessions_coll is not None:
             sessions_coll.update_one(

@@ -1567,6 +1567,28 @@ class AuditAnalyzer:
         )
 
         actual_count = len(tod) + len(toc)
+        
+        # If we couldn't select the requested total number of samples (due to capping constraints),
+        # we bifurcate the actually selected samples using the requested 70:30 (tod_pct) ratio!
+        if actual_count < total_needed and audit_type != 'small':
+            new_tod_size = math.ceil(actual_count * tod_pct / 100.0)
+            new_toc_size = actual_count - new_tod_size
+            
+            logger.info(f"Capping constraint hit. Deficit detected. Re-bifurcating actual {actual_count} samples: "
+                        f"{new_tod_size} TOD (target was {tod_size}) & {new_toc_size} TOC (target was {toc_size})")
+            
+            tod, toc = self.engine.generate(
+                scored=scored,
+                sampling_basis=sampling_basis,
+                tod_target=new_tod_size,
+                toc_target=new_toc_size,
+                amount_col=self.amount_col,
+                vendor_col=self.vendor_col,
+                date_col=self.date_col,
+                category=self.category,
+            )
+            actual_count = len(tod) + len(toc)
+
         if actual_count < total_needed:
             self.sampling_deficit = {
                 "requested": total_needed,

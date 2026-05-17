@@ -49,24 +49,24 @@ class AuditReportGenerator:
         pct_fmt = workbook.add_format({'border': 1, 'num_format': '0.0%'})
         
         if report_type == 'sampling':
-            # ── Sheet 1: Materiality & Risk (NEW) ──
-            self._write_planning_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt)
-
-            # ── Sheet 2: Original Ledger ──
+            # ── Sheet 1: Original Ledger ──
             self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
             
-            # ── Sheet 3: TOD Samples ──
+            # ── Sheet 2: TOD Samples ──
             self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
 
-            # ── Sheet 4: TOC Samples ──
+            # ── Sheet 3: TOC Samples ──
             self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
 
-            # ── Sheet 5: Audit Summary ──
+            # ── Sheet 4: Audit Summary ──
             self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
 
-            # ── Sheet 6: Sampling Explanation (NEW, conditional) ──
+            # ── Sheet 5: Sampling Explanation (conditional) ──
             if self.deficit_info:
                 self._write_deficit_explanation_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt)
+
+            # ── Sheet 6: Materiality & Risk (keep as LAST sheet) ──
+            self._write_planning_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt)
         else:
             # ── Sheet 1: Vouching Reconciliation ──
             if vouching_results:
@@ -418,13 +418,14 @@ class AuditReportGenerator:
         r += 1
         
         rk = self.risk
+        is_large = 'large' in str(rk.get('audit_type', '')).lower()
         rk_items = [
             ('Public / PIE Entity?', 'Yes' if rk.get('turnover_250') else 'No'),
             ('IFC Applicable?', 'Yes' if rk.get('ifc') else 'No'),
             ('Weak Control Environment?', 'Yes' if rk.get('governance') else 'No'),
             ('History of Misstatements?', 'Yes' if rk.get('misstatements') else 'No'),
-            ('Audit Classification', 'LARGE AUDIT' if rk.get('audit_type') == 'large' else 'SMALL AUDIT'),
-            ('Audit Approach', 'Combined (TOD + TOC)' if rk.get('audit_type') == 'large' and not rk.get('governance') else 'Substantive (TOD only)'),
+            ('Audit Classification', 'LARGE AUDIT' if is_large else 'SMALL AUDIT'),
+            ('Audit Approach', 'Combined (TOD + TOC)' if is_large and not rk.get('governance') else 'Substantive (TOD only)'),
         ]
         for label, val in rk_items:
             ws.write(r, 0, label, lbl_fmt)

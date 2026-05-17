@@ -17,13 +17,15 @@ class AuditAIEngine:
     TASK_PROFILES = {
         'FORENSIC': {
             'description': 'Heavy Reasoning (User Priority)',
-            'models': ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free', 
-                       'google/gemini-2.0-flash-exp:free'],
+            'models': ['openai/gpt-oss-120b:free',
+            'meta-llama/llama-3.3-70b-instruct:free', 
+            'google/gemini-2.0-flash-exp:free'],
         },
         'FAST_SCAN': {
             'description': 'Fast Cheap Backup (User Priority)',
-            'models': ['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free', 
-                       'google/gemma-2-9b-it:free'],
+            'models': ['meta-llama/llama-3.3-70b-instruct:free',
+            'qwen/qwen3-coder:free', 
+            'google/gemma-2-9b-it:free'],
         },
         'VOUCHING': {
             'description': 'Extraction & Image Parsing (User Priority)',
