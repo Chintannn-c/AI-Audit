@@ -806,11 +806,14 @@ class SampleEngine:
         norm_col = '_Norm_Vendor' if '_Norm_Vendor' in sorted_data.columns else vendor_col
 
         # ── PHASE 1: Mandatory month coverage (ALL months, one row each) ──────
-        month_indices: List[Any] = []
-        month_seen_vendors: Counter = Counter()
-        month_is_used, month_mark_used = self._vendor_helpers(
-            norm_col, month_seen_vendors, cap=self.config.vendor_cap_primary
+        # CRITICAL: Use the SAME counter as Phase 2 so month-coverage picks
+        # count toward the global vendor cap of 2.
+        all_seen_vendors: Counter = Counter()
+        all_is_used, all_mark_used = self._vendor_helpers(
+            norm_col, all_seen_vendors, cap=self.config.vendor_cap_primary
         )
+
+        month_indices: List[Any] = []
 
         if '_Parsed_Date' in sorted_data.columns:
             sorted_data['_Month'] = sorted_data['_Parsed_Date'].dt.month
@@ -818,23 +821,13 @@ class SampleEngine:
             for m in months:
                 month_pool = sorted_data[sorted_data['_Month'] == m]
                 for idx, row in month_pool.iterrows():
-                    if not month_is_used(row):
+                    if not all_is_used(row):      # ← uses global cap
                         month_indices.append(idx)
-                        month_mark_used(row)
+                        all_mark_used(row)         # ← counts toward global cap
                         break
 
         # ── PHASE 2: Greedy highest-value fill up to total_count_target ───────
-        all_seen_vendors: Counter = Counter()
-        # Seed with selections from month-coverage so they count toward the cap
-        for idx in month_indices:
-            row = sorted_data.loc[idx]
-            v = str(row.get(norm_col, '')).strip().lower()
-            if v and v not in ('nan', 'none', ''):
-                all_seen_vendors[v] += 1
-
-        all_is_used, all_mark_used = self._vendor_helpers(
-            norm_col, all_seen_vendors, cap=self.config.vendor_cap_primary
-        )
+        # Note: all_seen_vendors is already initialized and seeded with Phase 1 selections.
 
         selected_indices: List[Any] = list(month_indices)
         selected_set = set(selected_indices)
