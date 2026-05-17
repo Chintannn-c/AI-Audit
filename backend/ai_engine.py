@@ -473,8 +473,13 @@ class AuditAIEngine:
                     model_info["status"] = "Error"
             
             # Align limits perfectly for Rate Limited / Quota Exceeded nodes
-            if model_info["status"] in ("Rate Limited", "Error"):
+            if model_info["status"] == "Rate Limited":
                 model_info["used_today"] = 1500
+                model_info["remaining"] = 0
+                model_info["rpm_remaining"] = 0
+                model_info["tpm_remaining"] = 0
+            elif model_info["status"] == "Error":
+                model_info["used_today"] = 0
                 model_info["remaining"] = 0
                 model_info["rpm_remaining"] = 0
                 model_info["tpm_remaining"] = 0
@@ -531,8 +536,13 @@ class AuditAIEngine:
                 groq_model["status"] = "Connection Failed"
             
             # Align limits perfectly for Rate Limited / Connection Failed nodes
-            if groq_model["status"] in ("Rate Limited", "Connection Failed") or "Error" in groq_model["status"]:
+            if groq_model["status"] == "Rate Limited":
                 groq_model["used_today"] = 14400
+                groq_model["remaining"] = 0
+                groq_model["rpm_remaining"] = 0
+                groq_model["tpm_remaining"] = 0
+            elif groq_model["status"] in ("Connection Failed", "Disabled") or "Error" in groq_model["status"]:
+                groq_model["used_today"] = 0
                 groq_model["remaining"] = 0
                 groq_model["rpm_remaining"] = 0
                 groq_model["tpm_remaining"] = 0
@@ -583,8 +593,13 @@ class AuditAIEngine:
             except Exception:
                 mistral_model["status"] = "Connection Failed"
                 
-            if mistral_model["status"] in ("Rate Limited", "Connection Failed") or "Error" in mistral_model["status"]:
+            if mistral_model["status"] == "Rate Limited":
                 mistral_model["used_today"] = 10000
+                mistral_model["remaining"] = 0
+                mistral_model["rpm_remaining"] = 0
+                mistral_model["tpm_remaining"] = 0
+            elif mistral_model["status"] in ("Connection Failed", "Disabled") or "Error" in mistral_model["status"]:
+                mistral_model["used_today"] = 0
                 mistral_model["remaining"] = 0
                 mistral_model["rpm_remaining"] = 0
                 mistral_model["tpm_remaining"] = 0

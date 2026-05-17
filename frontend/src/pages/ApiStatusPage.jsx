@@ -45,7 +45,7 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
   // Real limit percentages
   const usedPercent = model.daily_limit > 0 ? (model.used_today / model.daily_limit) * 100 : 0
   const remaining = Math.max(0, model.daily_limit - model.used_today)
-  const isExhausted = remaining === 0
+  const isExhausted = remaining === 0 && model.status !== 'Connection Failed' && !model.status.startsWith('Error')
 
   // Progress bar color rules (0-70% Cyan, 70-90% Yellow, 90-100% Red)
   let barColor = '#06b6d4' // Cyan
@@ -228,7 +228,7 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
 
           {/* Bottom Row: Reset Countdown */}
           <span style={{ fontSize: 11, color: '#64748b' }}>
-            {formatCountdown(model.reset_seconds)}
+            {model.status === 'Live' || model.status === 'Slow' || model.status === 'Rate Limited' ? formatCountdown(model.reset_seconds) : 'N/A (Check Credentials)'}
           </span>
         </div>
       </div>
