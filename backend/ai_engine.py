@@ -19,6 +19,7 @@ class AuditAIEngine:
             'description': 'Heavy Reasoning',
             'models': [
                 'mistral/mistral-large-latest',
+                'gemma-4-31b-it',
                 'deepseek/deepseek-r1:free',
                 'meta-llama/llama-3.3-70b-instruct:free',
                 'openrouter/free',
@@ -29,6 +30,7 @@ class AuditAIEngine:
             'description': 'Fast Routing',
             'models': [
                 'mistral/mistral-large-latest',
+                'gemma-4-31b-it',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
                 'openrouter/free',
                 'meta-llama/llama-3.3-70b-instruct:free',
@@ -39,6 +41,7 @@ class AuditAIEngine:
             'description': 'OCR + Extraction',
             'models': [
                 'mistral/mistral-large-latest',
+                'gemma-4-31b-it',
                 'deepseek/deepseek-r1:free',
                 'qwen/qwen-2.5-coder-32b-instruct:free',
                 'meta-llama/llama-3.3-70b-instruct:free',
@@ -138,31 +141,38 @@ class AuditAIEngine:
             print(f"[AI] OpenRouter {model_id} failed: {e}")
             return None
 
-    async def _try_gemini(self, prompt, file_bytes=None, mime_type=None):
+    async def _try_gemini(self, prompt, file_bytes=None, mime_type=None, target_model="gemini-2.0-flash"):
         if not self.gemini_keys:
             print("[AI] No Gemini API keys configured.")
             return None
 
-        for idx, key in enumerate(self.gemini_keys):
+        # Filter which key to use based on target model
+        # Index 2 (Key #3) is Gemma 4, indices 0 & 1 are Gemini 2.0
+        allowed_indices = [2] if "gemma" in target_model.lower() else [0, 1]
+
+        for idx in allowed_indices:
+            if idx >= len(self.gemini_keys):
+                continue
+            key = self.gemini_keys[idx]
             try:
-                print(f"[AI] Trying Gemini Key #{idx + 1}...")
+                print(f"[AI] Trying {target_model} with Key #{idx + 1}...")
                 client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha'})
                 if file_bytes and mime_type:
                     resp = await client.aio.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model=target_model,
                         contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
                     )
                 else:
                     resp = await client.aio.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model=target_model,
                         contents=prompt
                     )
                 if resp and resp.text:
-                    print(f"[AI] Gemini Success with Key #{idx + 1}! Length: {len(resp.text)}")
+                    print(f"[AI] {target_model} Success with Key #{idx + 1}! Length: {len(resp.text)}")
                     return self._clean_json(resp.text)
-                print(f"[AI] Gemini returned empty response with Key #{idx + 1}.")
+                print(f"[AI] {target_model} returned empty response with Key #{idx + 1}.")
             except Exception as e:
-                print(f"[AI] Gemini Direct failed with Key #{idx + 1}: {e}")
+                print(f"[AI] {target_model} Direct failed with Key #{idx + 1}: {e}")
                 # Continue to next key if available
                 continue
         return None
@@ -218,7 +228,7 @@ class AuditAIEngine:
             return None
 
     def detect_provider(self, model_id: str) -> str:
-        if model_id.startswith("gemini-direct") or "gemini" in model_id.lower():
+        if "gemma" in model_id.lower() or model_id.startswith("gemini-direct") or "gemini" in model_id.lower():
             return "gemini"
         if model_id.startswith("groq/") or "groq" in model_id.lower():
             return "groq"
@@ -261,7 +271,7 @@ class AuditAIEngine:
 
             try:
                 if provider == "gemini" and self.gemini_keys:
-                    res = await self._try_gemini(prompt, file_bytes, mime_type)
+                    res = await self._try_gemini(prompt, file_bytes, mime_type, target_model=model_id)
                 elif provider == "groq" and self.groq_key and not is_multimodal:
                     res = await self._try_groq(prompt)
                 elif provider == "mistral" and self.mistral_key and not is_multimodal:
@@ -425,10 +435,10 @@ class AuditAIEngine:
         for idx, key in enumerate(self.gemini_keys):
             masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "Invalid Key"
             model_info = {
-                "id": f"gemini_node_{idx+1}",
-                "model": "gemini-2.0-flash",
+                "id": "gemma_node_3" if idx == 2 else f"gemini_node_{idx+1}",
+                "model": "gemma-4-31b-it" if idx == 2 else "gemini-2.0-flash",
                 "provider": "Google AI",
-                "api_key_name": f"Gemini Production Key #{idx+1}",
+                "api_key_name": "Gemma 4 Production Key" if idx == 2 else f"Gemini Production Key #{idx+1}",
                 "status": "Disabled",
                 "priority": idx + 1,
                 "daily_limit": 1500,
@@ -443,7 +453,8 @@ class AuditAIEngine:
             start_time = datetime.datetime.now()
             try:
                 async with httpx.AsyncClient(timeout=5.0) as client:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
+                    model_name = "gemma-4-31b-it" if idx == 2 else "gemini-2.0-flash"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
                     payload = {
                         "contents": [{
                             "parts": [{"text": "Hi"}]
