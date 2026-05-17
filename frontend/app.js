@@ -24,6 +24,63 @@ let isLargeAudit = true; // Default to true so TOC generates by default
 let selectedExactPct = 0.05; // Default for 'Medium' risk
 let selectedCategory = 'Sales';
 let selectedBasis = 'count';
+let maxUnlockedStage = 1; // 1 = Planning, 2 = Risk, 3 = Sampling, 4 = Vouching, 5 = Reports
+
+function getStageForSection(sectionId) {
+    if (sectionId === 'landing-page') return 0;
+    if (sectionId === 'materiality-section') return 1;
+    if (sectionId === 'risk-section') return 2;
+    if (sectionId === 'sampling-section') return 3;
+    if (sectionId === 'vouching-section') return 4;
+    if (sectionId === 'reports-section') return 5;
+    return 0;
+}
+
+function getStageName(stageNum) {
+    if (stageNum === 1) return "1. Planning & Materiality";
+    if (stageNum === 2) return "2. Risk Classification";
+    if (stageNum === 3) return "3. Sampling Generation";
+    if (stageNum === 4) return "4. Forensic Vouching";
+    if (stageNum === 5) return "5. Reports Summary";
+    return "";
+}
+
+function updateNavigationLockStates() {
+    // 1. Sidebar Nav Links
+    document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+        const target = link.dataset.target;
+        if (!target) return;
+        const stage = getStageForSection(target);
+        if (stage > maxUnlockedStage) {
+            link.classList.add('disabled');
+        } else {
+            link.classList.remove('disabled');
+        }
+    });
+
+    // 2. Top Tab Buttons
+    const tabPlanning = document.getElementById('tab-planning');
+    const tabAnalysis = document.getElementById('tab-analysis');
+    const tabSampling = document.getElementById('tab-sampling');
+    const tabVouching = document.getElementById('tab-vouching');
+
+    if (tabPlanning) {
+        if (1 > maxUnlockedStage) tabPlanning.classList.add('disabled');
+        else tabPlanning.classList.remove('disabled');
+    }
+    if (tabAnalysis) {
+        if (2 > maxUnlockedStage) tabAnalysis.classList.add('disabled');
+        else tabAnalysis.classList.remove('disabled');
+    }
+    if (tabSampling) {
+        if (3 > maxUnlockedStage) tabSampling.classList.add('disabled');
+        else tabSampling.classList.remove('disabled');
+    }
+    if (tabVouching) {
+        if (4 > maxUnlockedStage) tabVouching.classList.add('disabled');
+        else tabVouching.classList.remove('disabled');
+    }
+}
 
 // â”€â”€ Initialization â”€â”€
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initClassificationLogic();
     initSamplingLogic();
     initVouchingLogic();
+    updateNavigationLockStates();
 
     // Default Page
     navigateTo('landing-page');
@@ -69,6 +127,12 @@ let auditChart = null;
 
 // â”€â”€ Navigation Controller â”€â”€
 function navigateTo(sectionId) {
+    const targetStage = getStageForSection(sectionId);
+    if (targetStage > maxUnlockedStage) {
+        alert(`Access Locked: Please complete the "${getStageName(maxUnlockedStage)}" step first to proceed.`);
+        return;
+    }
+
     const sections = document.querySelectorAll('.content-section');
     sections.forEach(s => s.classList.add('hidden'));
 
@@ -130,8 +194,8 @@ function navigateTo(sectionId) {
 
     // Update Tab Active State & Visibility
     const tabContainer = document.querySelector('.tab-container');
-    const auditSections = ['materiality-section', 'risk-section', 'sampling-section'];
-    
+    const auditSections = ['materiality-section', 'risk-section', 'sampling-section', 'vouching-section'];
+
     if (tabContainer) {
         if (auditSections.includes(sectionId)) {
             tabContainer.classList.remove('hidden');
@@ -140,6 +204,7 @@ function navigateTo(sectionId) {
                 if (sectionId === 'materiality-section' && btn.id === 'tab-planning') btn.classList.add('active');
                 if (sectionId === 'risk-section' && btn.id === 'tab-analysis') btn.classList.add('active');
                 if (sectionId === 'sampling-section' && btn.id === 'tab-sampling') btn.classList.add('active');
+                if (sectionId === 'vouching-section' && btn.id === 'tab-vouching') btn.classList.add('active');
             });
         } else {
             tabContainer.classList.add('hidden');
@@ -260,6 +325,9 @@ function initMaterialityLogic() {
         try {
             await fetch('/api/materiality', { method: 'POST', body: fd });
         } catch (e) { console.error("Materiality Sync Failed", e); }
+
+        maxUnlockedStage = Math.max(maxUnlockedStage, 2);
+        updateNavigationLockStates();
     });
 }
 
@@ -291,6 +359,9 @@ function initClassificationLogic() {
         try {
             await fetch('/api/risk-assessment', { method: 'POST', body: fd });
         } catch (e) { console.error("Risk Sync Failed", e); }
+
+        maxUnlockedStage = Math.max(maxUnlockedStage, 3);
+        updateNavigationLockStates();
     });
 }
 
@@ -510,6 +581,8 @@ async function runVouch(file) {
         // Update History Table
         updateVouchHistory();
 
+        maxUnlockedStage = Math.max(maxUnlockedStage, 5);
+        updateNavigationLockStates();
     } catch (err) {
         console.error(err);
         status.classList.add('hidden');
@@ -540,7 +613,7 @@ async function runDownload() {
 
     try {
         const res = await fetch('/api/download', { method: 'POST', body: fd });
-        
+
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.error || `Server responded with ${res.status}`);
@@ -548,7 +621,7 @@ async function runDownload() {
 
         const blob = await res.blob();
         if (blob.size < 100) { // Safety check for empty/corrupt files
-             throw new Error("Generated report is empty. Check ledger data.");
+            throw new Error("Generated report is empty. Check ledger data.");
         }
 
         const url = window.URL.createObjectURL(blob);
@@ -683,6 +756,9 @@ async function runAnalysis() {
         if (data.dashboard) {
             renderDashboard(data.dashboard);
         }
+
+        maxUnlockedStage = Math.max(maxUnlockedStage, 4);
+        updateNavigationLockStates();
 
     } catch (err) {
         console.error(err);

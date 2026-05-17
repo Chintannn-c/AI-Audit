@@ -872,3 +872,30 @@ select.glass-input option {
         margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid #6366f1;
     }
 }
+
+/* Disabled States for Step-by-Step Locking */
+.tab-btn.disabled,
+.nav-link.disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+.tab-btn.disabled:hover,
+.nav-link.disabled:hover {
+    color: var(--text-secondary) !important;
+    background: transparent !important;
+}
+
+/* Center Landing Page Materiality Card */
+#landing-page .hero-section > div {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
+#landing-page .hero-section .glass-card {
+    max-width: 460px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
