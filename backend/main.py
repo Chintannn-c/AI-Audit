@@ -89,6 +89,12 @@ try:
         db["rate_limits"].create_index("expires_at", expireAfterSeconds=0)
         db["ip_bans"].create_index("expires_at", expireAfterSeconds=0)
         db["rate_limit_breaches"].create_index("expires_at", expireAfterSeconds=0)
+        # Clear IP bans on startup to prevent lock-outs during redeployment / active updates
+        try:
+            db["ip_bans"].delete_many({})
+            print("[SUCCESS] Cleared IP bans database collection on startup.")
+        except Exception:
+            pass
     except Exception:
         pass
 except Exception as e:
@@ -188,11 +194,11 @@ def record_rate_limit_breach(ip: str):
         "ip": ip,
         "timestamp": {"$gte": now - timedelta(minutes=5)}
     })
-    if count >= 3:
+    if count >= 5:
         logger.warning(f"IP {ip} triggered global circuit breaker. Temporary ban active.")
         db["ip_bans"].update_one(
             {"_id": ip},
-            {"$set": {"expires_at": now + timedelta(hours=1)}},
+            {"$set": {"expires_at": now + timedelta(minutes=5)}},
             upsert=True
         )
 
@@ -411,7 +417,7 @@ async def check_rate_limits(request: Request, session: Optional[dict] = None):
     path = request.url.path
     
     if path == "/api/session/create":
-        allowed, retry_after = check_rate_limit(f"ip_create:{client_ip}", 5, 60)
+        allowed, retry_after = check_rate_limit(f"ip_create:{client_ip}", 20, 60)
         if not allowed:
             record_rate_limit_breach(client_ip)
             raise HTTPException(status_code=429, headers={"Retry-After": str(retry_after)}, detail="Rate limit exceeded")
