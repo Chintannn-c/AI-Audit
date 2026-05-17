@@ -16,28 +16,32 @@ class AuditAIEngine:
 
     TASK_PROFILES = {
         'FORENSIC': {
-            'description': 'Heavy Reasoning (User Priority)',
-            'models': ['openai/gpt-oss-120b:free',
-            'meta-llama/llama-3.3-70b-instruct:free', 
-            'google/gemini-2.0-flash-exp:free'],
-        },
-        'FAST_SCAN': {
-            'description': 'Fast Cheap Backup (User Priority)',
-            'models': ['meta-llama/llama-3.3-70b-instruct:free',
-            'qwen/qwen3-coder:free', 
-            'google/gemma-2-9b-it:free'],
-        },
-        'VOUCHING': {
-            'description': 'Extraction & Image Parsing (User Priority)',
+            'description': 'Heavy Reasoning',
             'models': [
                 'openai/gpt-oss-120b:free',
-                'qwen/qwen3-coder:free', 
-                'baidu/qianfan-ocr-fast:free',
-                'google/gemini-2.0-flash-exp:free',
-                'meta-llama/llama-3.3-70b-instruct:free',
+                'deepseek/deepseek-r1:free',
+                'meta-llama/llama-3.1-8b-instruct:free',
+            ],
+        },
+
+        'FAST_SCAN': {
+            'description': 'Fast Routing',
+            'models': [
+                'qwen/qwen3-coder:free',
+                'mistralai/mistral-7b-instruct:free',
+                'meta-llama/llama-3.1-8b-instruct:free',
+            ],
+        },
+
+        'VOUCHING': {
+            'description': 'OCR + Extraction',
+            'models': [
+                'openai/gpt-oss-120b:free',
+                'qwen/qwen3-coder:free',
                 'deepseek/deepseek-r1:free',
                 'mistralai/mistral-7b-instruct:free',
-                'google/gemma-2-9b-it:free'
+                'meta-llama/llama-3.1-8b-instruct:free',
+                'google/gemma-3-4b-it:free',
             ],
         },
     }
@@ -51,6 +55,10 @@ class AuditAIEngine:
         self.gemini_keys = [k for k in self.gemini_keys if k]
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        
+        # Self-healing and Telemetry cache
+        self.dead_models = set()
+        self.model_health = {}
         
         # Initialize Persistent Cache
         self.cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
@@ -173,11 +181,15 @@ class AuditAIEngine:
             print(f"[AI] Groq Direct failed: {e}")
             return None
 
-    # ──────────────────────────────────────────────
-    # CORE ROUTING & ENSEMBLE
-    # ──────────────────────────────────────────────
+    def detect_provider(self, model_id: str) -> str:
+        if model_id.startswith("gemini-direct") or "gemini" in model_id.lower():
+            return "gemini"
+        if model_id.startswith("groq/") or "groq" in model_id.lower():
+            return "groq"
+        return "openrouter"
 
     async def route_task(self, task_type: str, payload: dict) -> Optional[dict]:
+        import datetime
         task_type = task_type.upper()
         profile = self.TASK_PROFILES.get(task_type, self.TASK_PROFILES['FAST_SCAN'])
         prompt = payload.get('prompt', '')
@@ -185,7 +197,13 @@ class AuditAIEngine:
         mime_type = payload.get('mime_type')
         is_multimodal = file_bytes is not None
 
-        print(f"[ROUTER] Task={task_type} | Models={len(profile['models'])}")
+        # Dynamic prioritization: sort models based on their historical average latency
+        models_to_try = sorted(
+            profile.get('models', []),
+            key=lambda m: self.model_health.get(m, {}).get('avg_latency', 9999)
+        )
+
+        print(f"[ROUTER] Task={task_type} | Models={len(models_to_try)} (Sorted by latency)")
 
         # Check Cache first
         cache_key = self._get_cache_key(task_type, prompt, file_bytes)
@@ -193,21 +211,61 @@ class AuditAIEngine:
             print(f"[CACHE] Hit! Returning cached result for {task_type}")
             return self.cache[cache_key]
 
-        for model_id in profile.get('models', []):
+        for model_id in models_to_try:
+            if model_id in self.dead_models:
+                print(f"[ROUTER] Skipping dead/quarantined model: {model_id}")
+                continue
+
             print(f"[ROUTER] Trying model: {model_id}...")
+            provider = self.detect_provider(model_id)
+            start_time = datetime.datetime.now()
+            res = None
+
             try:
-                if "gemini" in model_id.lower() and self.gemini_keys:
+                if provider == "gemini" and self.gemini_keys:
                     res = await self._try_gemini(prompt, file_bytes, mime_type)
-                elif "groq" in model_id.lower() and self.groq_key and not is_multimodal:
+                elif provider == "groq" and self.groq_key and not is_multimodal:
                     res = await self._try_groq(prompt)
                 elif self.openrouter_key:
                     res = await self._try_openrouter(model_id, prompt, file_bytes, mime_type, is_multimodal)
                 else:
                     print(f"[ROUTER] Skipping {model_id} (Missing API key or incompatible)")
                     continue
+                
+                # Successful execution telemetry
+                latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
+                health = self.model_health.setdefault(model_id, {
+                    "success_count": 0,
+                    "fail_count": 0,
+                    "avg_latency": 0.0,
+                    "last_success": None
+                })
+                health["success_count"] += 1
+                health["last_success"] = datetime.datetime.now().isoformat()
+                if health["avg_latency"] == 0.0 or health["avg_latency"] == 9999:
+                    health["avg_latency"] = latency
+                else:
+                    health["avg_latency"] = (health["avg_latency"] * 0.7) + (latency * 0.3)
+
             except Exception as e:
-                print(f"[ROUTER] Model {model_id} crashed: {e}")
-                if "429" in str(e):
+                err_str = str(e)
+                print(f"[ROUTER] Model {model_id} failed: {err_str}")
+                
+                # Update failure health metrics
+                health = self.model_health.setdefault(model_id, {
+                    "success_count": 0,
+                    "fail_count": 0,
+                    "avg_latency": 9999,
+                    "last_success": None
+                })
+                health["fail_count"] += 1
+                
+                # Quarantine if returning a 404 or endpoint missing error
+                if "404" in err_str or "no endpoints found" in err_str.lower() or "not found" in err_str.lower():
+                    self.dead_models.add(model_id)
+                    print(f"[QUARANTINE] Isolated dead model {model_id} to prevent subsequent failover latency.")
+
+                if "429" in err_str:
                     print(f"[ROUTER] Rate limit hit. Waiting 2s before next model...")
                     await asyncio.sleep(2)
                 continue
@@ -305,7 +363,13 @@ class AuditAIEngine:
         next_reset = (now_utc + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         reset_seconds = int((next_reset - now_utc).total_seconds())
 
-        # 1. Gemini Keys Check
+        # Dynamically extract all active models configured in TASK_PROFILES
+        all_profile_models = set()
+        for p in self.TASK_PROFILES.values():
+            for m in p.get('models', []):
+                all_profile_models.add(m)
+
+        # 1. Gemini Keys Check (Direct)
         for idx, key in enumerate(self.gemini_keys):
             masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "Invalid Key"
             model_info = {
@@ -336,8 +400,8 @@ class AuditAIEngine:
                     model_info["status"] = "Live"
                     model_info["latency_ms"] = latency
                     model_info["last_active"] = "Active now"
-                    # Add realistic simulated usage if Live based on time of day
-                    used_sim = int((1 - (reset_seconds / 86400)) * 50000 * 0.3)
+                    # Add local usage estimation based on elapsed time of day
+                    used_sim = int((1 - (reset_seconds / 86400)) * 50000 * 0.18)
                     model_info["used_today"] = used_sim
                     model_info["remaining"] = 50000 - used_sim
                 else:
@@ -346,55 +410,11 @@ class AuditAIEngine:
                 err_str = str(e).lower()
                 if "429" in err_str or "quota" in err_str or "limit" in err_str:
                     model_info["status"] = "Rate Limited"
-                elif "400" in err_str or "api key" in err_str or "invalid" in err_str:
-                    model_info["status"] = "Error"
                 else:
                     model_info["status"] = "Error"
             models.append(model_info)
 
-        # 2. OpenRouter Key Check
-        if self.openrouter_key:
-            masked_key = f"{self.openrouter_key[:14]}..." if len(self.openrouter_key) > 14 else "Key"
-            or_model = {
-                "id": "openrouter_gateway",
-                "model": "meta-llama/llama-3.3-70b-instruct:free",
-                "provider": "OpenRouter",
-                "api_key_name": f"OR Gateway ({masked_key})",
-                "status": "Disabled",
-                "priority": len(self.gemini_keys) + 1,
-                "daily_limit": 5000,
-                "used_today": 0,
-                "remaining": 5000,
-                "rpm_remaining": 200,
-                "tpm_remaining": 40000,
-                "reset_seconds": reset_seconds,
-                "latency_ms": None,
-                "last_active": "Unavailable"
-            }
-            start_time = datetime.datetime.now()
-            try:
-                async with httpx.AsyncClient(timeout=8.0) as client:
-                    headers = {"Authorization": f"Bearer {self.openrouter_key}"}
-                    resp = await client.get("https://openrouter.ai/api/v1/key", headers=headers)
-                    latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
-                    if resp.status_code == 200:
-                        data = resp.json().get("data", {})
-                        usage = data.get("usage_daily", 0)
-                        or_model["status"] = "Live"
-                        or_model["latency_ms"] = latency
-                        or_model["last_active"] = "Active now"
-                        # Approx math for limits based on $0.50 free tier limit (~5000 reqs)
-                        or_model["used_today"] = int((usage / 0.50) * 5000) if usage else 0
-                        or_model["remaining"] = max(0, 5000 - or_model["used_today"])
-                        if or_model["used_today"] >= 4500:
-                            or_model["status"] = "Rate Limited"
-                    else:
-                        or_model["status"] = f"Error {resp.status_code}"
-            except Exception:
-                or_model["status"] = "Connection Failed"
-            models.append(or_model)
-
-        # 3. Groq Key Check
+        # 2. Groq Key Check (Direct)
         if self.groq_key:
             masked_key = f"{self.groq_key[:8]}..." if len(self.groq_key) > 8 else "Key"
             groq_model = {
@@ -403,7 +423,7 @@ class AuditAIEngine:
                 "provider": "Groq",
                 "api_key_name": f"Groq Fast ({masked_key})",
                 "status": "Disabled",
-                "priority": len(self.gemini_keys) + 2,
+                "priority": len(self.gemini_keys) + 1,
                 "daily_limit": 14400,
                 "used_today": 0,
                 "remaining": 14400,
@@ -428,7 +448,14 @@ class AuditAIEngine:
                         groq_model["status"] = "Live"
                         groq_model["latency_ms"] = latency
                         groq_model["last_active"] = "Active now"
-                        used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.1)
+                        
+                        # Dynamic rate limits parsing from Groq response headers
+                        rpm_header = resp.headers.get("x-ratelimit-remaining-requests")
+                        tpm_header = resp.headers.get("x-ratelimit-remaining-tokens")
+                        if rpm_header: groq_model["rpm_remaining"] = int(rpm_header)
+                        if tpm_header: groq_model["tpm_remaining"] = int(tpm_header)
+                        
+                        used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.12)
                         groq_model["used_today"] = used_sim
                         groq_model["remaining"] = 14400 - used_sim
                     else:
@@ -436,6 +463,66 @@ class AuditAIEngine:
             except Exception:
                 groq_model["status"] = "Connection Failed"
             models.append(groq_model)
+
+        # 3. OpenRouter Key Check (Dynamic telemetry of all profile models)
+        if self.openrouter_key:
+            masked_key = f"{self.openrouter_key[:14]}..." if len(self.openrouter_key) > 14 else "Key"
+            
+            or_status = "Disabled"
+            or_latency = None
+            or_daily_limit = 5000
+            or_used_today = 0
+            or_rpm = 200
+            or_tpm = 40000
+            
+            start_time = datetime.datetime.now()
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    headers = {"Authorization": f"Bearer {self.openrouter_key}"}
+                    resp = await client.get("https://openrouter.ai/api/v1/auth/key", headers=headers)
+                    or_latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
+                    if resp.status_code == 200:
+                        data = resp.json().get("data", {})
+                        usage = data.get("usage", 0)
+                        limit = data.get("limit", 0)
+                        or_status = "Live"
+                        if limit:
+                            or_daily_limit = int(limit)
+                            or_used_today = int(usage)
+                        else:
+                            # Assume standard free gateway tier
+                            or_daily_limit = 5000
+                            or_used_today = int(usage * 10000) if usage else 0
+                    else:
+                        or_status = f"Error {resp.status_code}"
+            except Exception:
+                or_status = "Connection Failed"
+
+            # Dynamically map and render all OpenRouter models
+            for idx, router_model in enumerate(sorted(list(all_profile_models))):
+                if router_model in self.dead_models:
+                    model_status = "Rate Limited" # quarantined models show warning alert
+                    model_latency = None
+                else:
+                    model_status = or_status
+                    model_latency = or_latency
+
+                models.append({
+                    "id": f"or_model_{idx+1}",
+                    "model": router_model,
+                    "provider": "OpenRouter",
+                    "api_key_name": f"OR Gateway ({masked_key})",
+                    "status": model_status,
+                    "priority": len(self.gemini_keys) + 2 + idx,
+                    "daily_limit": or_daily_limit,
+                    "used_today": or_used_today,
+                    "remaining": max(0, or_daily_limit - or_used_today),
+                    "rpm_remaining": or_rpm,
+                    "tpm_remaining": or_tpm,
+                    "reset_seconds": reset_seconds,
+                    "latency_ms": model_latency,
+                    "last_active": "Active now" if model_status == "Live" else "Unavailable"
+                })
 
         return {"models": models}
 
