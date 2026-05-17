@@ -231,16 +231,22 @@ def validate_uploaded_file(file: UploadFile):
     ext = os.path.splitext(file.filename)[1].lower()
     magic = contents[:4]
     
-    if ext == ".xlsx":
-        if magic != b"\x50\x4B\x03\x04":
-            raise HTTPException(status_code=400, detail="Invalid Excel (.xlsx) file contents (magic bytes mismatch)")
+    if ext in (".xlsx", ".xls"):
+        # Excel files can be:
+        # 1. OpenXML Zip (.xlsx or incorrectly named .xls) -> PK\x03\x04
+        # 2. OLE2 Compound Document (.xls or incorrectly named .xlsx) -> \xD0\xCF\x11\xE0
+        # 3. HTML/XML spreadsheet disguised as xls/xlsx -> starts with <
+        header_check = contents[:500].decode('utf-8', errors='ignore').strip().lower()
+        is_html = header_check.startswith('<!doctype') or header_check.startswith('<html') or '<table' in header_check[:200]
+        if magic != b"\x50\x4B\x03\x04" and magic != b"\xD0\xCF\x11\xE0" and not is_html:
+            raise HTTPException(status_code=400, detail=f"Invalid Excel ({ext}) file contents (magic bytes mismatch)")
     elif ext == ".csv":
         try:
             contents[:500].decode("utf-8")
         except UnicodeDecodeError:
             raise HTTPException(status_code=400, detail="Invalid CSV file contents (not valid UTF-8 text)")
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Only .xlsx and .csv files are permitted")
+        raise HTTPException(status_code=400, detail="Unsupported file format. Only .xlsx, .xls, and .csv files are permitted")
 
 # ──────────────────────────────────────────────
 # AUTHENTICATION & SESSION MANAGEMENT HELPERS
@@ -1080,7 +1086,7 @@ async def deep_audit_transaction(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
 
 if __name__ == "__main__":
