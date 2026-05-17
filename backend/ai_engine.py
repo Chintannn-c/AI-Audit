@@ -18,30 +18,28 @@ class AuditAIEngine:
         'FORENSIC': {
             'description': 'Heavy Reasoning',
             'models': [
-                'openai/gpt-oss-120b:free',
                 'deepseek/deepseek-r1:free',
-                'meta-llama/llama-3.1-8b-instruct:free',
+                'meta-llama/llama-3.3-70b-instruct:free',
+                'openrouter/free',
             ],
         },
 
         'FAST_SCAN': {
             'description': 'Fast Routing',
             'models': [
-                'qwen/qwen3-coder:free',
-                'mistralai/mistral-7b-instruct:free',
-                'meta-llama/llama-3.1-8b-instruct:free',
+                'qwen/qwen-2.5-coder-32b-instruct:free',
+                'openrouter/free',
+                'meta-llama/llama-3.3-70b-instruct:free',
             ],
         },
 
         'VOUCHING': {
             'description': 'OCR + Extraction',
             'models': [
-                'openai/gpt-oss-120b:free',
-                'qwen/qwen3-coder:free',
                 'deepseek/deepseek-r1:free',
-                'mistralai/mistral-7b-instruct:free',
-                'meta-llama/llama-3.1-8b-instruct:free',
-                'google/gemma-3-4b-it:free',
+                'qwen/qwen-2.5-coder-32b-instruct:free',
+                'meta-llama/llama-3.3-70b-instruct:free',
+                'openrouter/free',
             ],
         },
     }
@@ -285,7 +283,7 @@ class AuditAIEngine:
 
     async def ensemble_consensus(self, prompt: str, min_agree: int = 2) -> Optional[dict]:
         profile = self.TASK_PROFILES.get('FORENSIC', {})
-        models = profile.get('models', ["meta-llama/llama-3.3-70b-instruct:free", "nousresearch/hermes-3-llama-3.1-405b:free", "nvidia/nemotron-3-super-120b-a12b:free"])[:3]
+        models = profile.get('models', ["deepseek/deepseek-r1:free", "meta-llama/llama-3.3-70b-instruct:free", "openrouter/free"])[:3]
 
         print(f"[ENSEMBLE] Launching {len(models)} models in parallel...")
         

@@ -54,16 +54,20 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
 
   const statusCfg = getStatusConfig(model.status)
 
-  // Map to clean model names if they contain OR prefixes
-  const cleanModelName = model.model
-    .replace('meta-llama/', '')
-    .replace('mistralai/', '')
-    .replace('qwen/', '')
-    .replace('deepseek/', '')
-    .replace('google/', '')
-    .replace(':free', '')
-    .replace('-instruct', '')
-    .replace('-coder', '')
+  let cleanModelName = model.model
+  if (cleanModelName === 'openrouter/free') {
+    cleanModelName = 'OpenRouter Free Auto-Router (Dynamic Failover)'
+  } else {
+    cleanModelName = cleanModelName
+      .replace('meta-llama/', '')
+      .replace('mistralai/', '')
+      .replace('qwen/', '')
+      .replace('deepseek/', '')
+      .replace('google/', '')
+      .replace(':free', '')
+      .replace('-instruct', '')
+      .replace('-coder', '')
+  }
 
   const handleCopyClick = (e) => {
     e.stopPropagation()
