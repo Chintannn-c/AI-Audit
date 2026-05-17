@@ -1,0 +1,113 @@
+/* StatAudit AI Enterprise Theme System */
+
+/* ─── MIDNIGHT INDIGO (Default Cybernetic Theme) ─── */
+:root {
+    --bg-midnight: #020617;
+    --bg-navy: #0f172a;
+    --glass: rgba(30, 41, 59, 0.7);
+    --bg-dark: #020617;
+    --bg-card: rgba(30, 41, 59, 0.7);
+    --accent-primary: #6366f1;
+    --accent-secondary: #a855f7;
+    --accent-glow: rgba(99, 102, 241, 0.4);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Radial Gradient Accent Layers */
+    --gradient-color-1: rgba(99, 102, 241, 0.12);
+    --gradient-color-2: rgba(168, 85, 247, 0.12);
+}
+
+/* ─── EMERALD MINT (Sleek Professional Green) ─── */
+[data-theme="emerald"] {
+    --bg-midnight: #020806;
+    --bg-navy: #091a14;
+    --glass: rgba(9, 26, 20, 0.75);
+    --bg-dark: #020806;
+    --bg-card: rgba(9, 26, 20, 0.75);
+    --accent-primary: #10b981;
+    --accent-secondary: #34d399;
+    --accent-glow: rgba(16, 185, 129, 0.4);
+    --text-primary: #ecfdf5;
+    --text-secondary: #a7f3d0;
+    --text-muted: #6ee7b7;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    
+    --gradient-color-1: rgba(16, 185, 129, 0.12);
+    --gradient-color-2: rgba(52, 211, 153, 0.12);
+}
+
+/* ─── SUNSET CRIMSON (High-Contrast Rich Rose) ─── */
+[data-theme="sunset"] {
+    --bg-midnight: #0c0205;
+    --bg-navy: #1f050e;
+    --glass: rgba(31, 5, 14, 0.75);
+    --bg-dark: #0c0205;
+    --bg-card: rgba(31, 5, 14, 0.75);
+    --accent-primary: #f43f5e;
+    --accent-secondary: #fb7185;
+    --accent-glow: rgba(244, 63, 94, 0.4);
+    --text-primary: #fff1f2;
+    --text-secondary: #fecdd3;
+    --text-muted: #fda4af;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #fb7185;
+    
+    --gradient-color-1: rgba(244, 63, 94, 0.12);
+    --gradient-color-2: rgba(251, 113, 133, 0.12);
+}
+
+/* ─── CYBERPUNK NEON (Electric Pink & Cyan Synthwave) ─── */
+[data-theme="cyberpunk"] {
+    --bg-midnight: #080112;
+    --bg-navy: #130324;
+    --glass: rgba(19, 3, 36, 0.75);
+    --bg-dark: #080112;
+    --bg-card: rgba(19, 3, 36, 0.75);
+    --accent-primary: #ec4899;
+    --accent-secondary: #06b6d4;
+    --accent-glow: rgba(236, 72, 153, 0.4);
+    --text-primary: #fdf2f8;
+    --text-secondary: #cbd5e1;
+    --text-muted: #f472b6;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --success: #22c55e;
+    --warning: #eab308;
+    --danger: #ef4444;
+    
+    --gradient-color-1: rgba(236, 72, 153, 0.12);
+    --gradient-color-2: rgba(6, 182, 212, 0.12);
+}
+
+/* ─── CLASSIC SLATE (Minimalist Corporate Slate) ─── */
+[data-theme="slate"] {
+    --bg-midnight: #0b0f19;
+    --bg-navy: #172033;
+    --glass: rgba(23, 32, 51, 0.75);
+    --bg-dark: #0b0f19;
+    --bg-card: rgba(23, 32, 51, 0.75);
+    --accent-primary: #3b82f6;
+    --accent-secondary: #60a5fa;
+    --accent-glow: rgba(59, 130, 246, 0.4);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    
+    --gradient-color-1: rgba(59, 130, 246, 0.12);
+    --gradient-color-2: rgba(96, 165, 250, 0.12);
+}

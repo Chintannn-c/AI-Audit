@@ -96,5 +96,41 @@ class TestAuditAnalyzerRefactored(unittest.TestCase):
         store_row = scored[scored['Vch No'] == 'INV-002']
         self.assertIn('Suspicious Narration', store_row['_Risk_Flags'].values[0])
 
+    def test_value_based_sampling(self):
+        analyzer = AuditAnalyzer(self.df, 'Purchases')
+        # Generate value-based samples targeting 20% coverage
+        tod, toc = analyzer.generate_samples(sample_pct=20.0, sampling_basis='value', tod_pct=70.0)
+        
+        # Total value sum of the input ledger
+        total_ledger_val = analyzer.df['Debit'].abs().sum()
+        # Selected target cumulative sum
+        selected_val = tod['Debit'].abs().sum() + toc['Debit'].abs().sum()
+        
+        # The sum of chosen value-based samples should cover at least 20% of the total ledger value
+        self.assertGreaterEqual(selected_val, total_ledger_val * 0.2)
+
+    def test_empty_amount_column_validation(self):
+        # Create a dataframe with strictly non-numeric alphabetical strings to ensure amount detection fails
+        df_no_amt = pd.DataFrame({
+            'Voucher Date': ['abc'],
+            'Particulars': ['Vendor A'],
+            'Vch No': ['INV-abc']
+        })
+        with self.assertRaises(ValueError) as ctx:
+            AuditAnalyzer(df_no_amt, 'Purchases')
+        self.assertIn("No amount column could be detected", str(ctx.exception))
+
+    def test_legacy_sample_count_helper_methods(self):
+        analyzer = AuditAnalyzer(self.df, 'Purchases')
+        scored = analyzer.score_risks()
+        
+        # Verify SampleEngine.sample_by_count can be invoked successfully
+        tod_count, toc_count = analyzer.engine.sample_by_count(scored, sample_pct=30.0, tod_pct=70.0, vendor_col='Particulars', category='Purchases')
+        self.assertEqual(len(tod_count) + len(toc_count), 5)
+        
+        # Verify SampleEngine.sample_by_count_generic can be invoked successfully
+        tod_gen, toc_gen = analyzer.engine.sample_by_count_generic(scored, sample_pct=30.0, tod_pct=70.0, category='Purchases')
+        self.assertEqual(len(tod_gen) + len(toc_gen), 5)
+
 if __name__ == '__main__':
     unittest.main()

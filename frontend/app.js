@@ -82,9 +82,16 @@ function updateNavigationLockStates() {
     }
 }
 
-// â”€â”€ Initialization â”€â”€
+// ─── Initialization ───
 document.addEventListener('DOMContentLoaded', () => {
     console.log("StatAudit Engine: Initializing...");
+    
+    // Load and Apply UI Theme
+    const savedTheme = localStorage.getItem('stataudit_theme');
+    if (savedTheme) {
+        changeTheme(savedTheme);
+    }
+    
     lucide.createIcons();
     initMaterialityLogic();
     initClassificationLogic();
@@ -1098,6 +1105,21 @@ async function updateVouchHistory() {
     } catch (err) {
         console.error('History Error:', err);
     }
+}
+
+// ─── StatAudit UI Theme Control ───
+function changeTheme(themeName) {
+    if (themeName === 'default') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.removeItem('stataudit_theme');
+    } else {
+        document.documentElement.setAttribute('data-theme', themeName);
+        localStorage.setItem('stataudit_theme', themeName);
+    }
+    
+    // Sync dropdown if called programmatically
+    const themeSelect = document.getElementById('themeSelect');
+    if (themeSelect) themeSelect.value = themeName;
 }
 
 

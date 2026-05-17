@@ -55,6 +55,16 @@
                 </a>
             </nav>
             <div style="padding:16px;margin-top:auto;border-top:1px solid var(--glass-border);">
+                <div class="form-group mb-12">
+                    <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block;">UI Theme</label>
+                    <select id="themeSelect" onchange="changeTheme(this.value)" class="glass-input" style="padding:6px 10px;font-size:12px;background:rgba(15,23,42,0.6);border-radius:8px;">
+                        <option value="default">Midnight Indigo</option>
+                        <option value="emerald">Emerald Mint</option>
+                        <option value="sunset">Sunset Crimson</option>
+                        <option value="cyberpunk">Cyberpunk Neon</option>
+                        <option value="slate">Classic Slate</option>
+                    </select>
+                </div>
                 <button onclick="clearSession()" class="btn-secondary w-full" style="font-size:11px;padding:8px;">
                     <i data-lucide="refresh-cw"
                         style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:4px;"></i> New
