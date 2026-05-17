@@ -376,7 +376,7 @@ class AuditAIEngine:
                 "id": f"gemini_node_{idx+1}",
                 "model": "gemini-2.0-flash",
                 "provider": "Google AI",
-                "api_key_name": f"Gemini Key #{idx+1} ({masked_key})",
+                "api_key_name": f"Gemini Production Key #{idx+1}",
                 "status": "Disabled",
                 "priority": idx + 1,
                 "daily_limit": 50000,
@@ -407,8 +407,8 @@ class AuditAIEngine:
                 else:
                     model_info["status"] = "Error"
             except Exception as e:
-                err_str = str(e).lower()
-                if "429" in err_str or "quota" in err_str or "limit" in err_str:
+                err_str = f"{type(e).__name__}: {str(e)}".lower()
+                if "429" in err_str or "quota" in err_str or "limit" in err_str or "exhausted" in err_str:
                     model_info["status"] = "Rate Limited"
                 else:
                     model_info["status"] = "Error"
@@ -421,7 +421,7 @@ class AuditAIEngine:
                 "id": "groq_speed",
                 "model": "llama-3.3-70b-specdec",
                 "provider": "Groq",
-                "api_key_name": f"Groq Fast ({masked_key})",
+                "api_key_name": "Groq Production Key",
                 "status": "Disabled",
                 "priority": len(self.gemini_keys) + 1,
                 "daily_limit": 14400,
@@ -511,7 +511,7 @@ class AuditAIEngine:
                     "id": f"or_model_{idx+1}",
                     "model": router_model,
                     "provider": "OpenRouter",
-                    "api_key_name": f"OR Gateway ({masked_key})",
+                    "api_key_name": "OpenRouter Gateway Key",
                     "status": model_status,
                     "priority": len(self.gemini_keys) + 2 + idx,
                     "daily_limit": or_daily_limit,

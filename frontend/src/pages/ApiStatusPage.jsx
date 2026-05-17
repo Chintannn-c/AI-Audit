@@ -104,21 +104,6 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
             <span style={{ fontSize: 11, color: '#94a3b8' }}>
               {model.provider}
             </span>
-            <span style={{ fontSize: 11, color: '#475569' }}>•</span>
-            <div 
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-              onClick={handleCopyClick}
-              title="Click to copy alias"
-            >
-              <span style={{ fontSize: 11, color: '#475569', transition: 'color 0.2s', textDecoration: 'underline' }}>
-                {model.api_key_name || 'Production Key'}
-              </span>
-              {copiedId === model.id ? (
-                <Check size={10} style={{ color: '#10b981' }} />
-              ) : (
-                <Copy size={10} style={{ color: '#475569' }} />
-              )}
-            </div>
           </div>
         </div>
 
