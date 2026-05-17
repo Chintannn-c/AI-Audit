@@ -250,10 +250,18 @@ class AuditAIEngine:
         mime_type = payload.get('mime_type')
         is_multimodal = file_bytes is not None
 
-        # Dynamic prioritization: sort models based on their historical average latency
+        # Tiered prioritization: 1) Groq (free/fast), 2) Google AI/Mistral (direct), 3) OpenRouter (fallback)
+        def get_provider_weight(model_id: str) -> int:
+            prov = self.detect_provider(model_id)
+            if prov == "groq":
+                return 1
+            if prov in ("gemini", "mistral"):
+                return 2
+            return 3
+
         models_to_try = sorted(
             profile.get('models', []),
-            key=lambda m: self.model_health.get(m, {}).get('avg_latency', 9999)
+            key=lambda m: (get_provider_weight(m), self.model_health.get(m, {}).get('avg_latency', 9999))
         )
 
         print(f"[ROUTER] Task={task_type} | Models={len(models_to_try)} (Sorted by latency)")
