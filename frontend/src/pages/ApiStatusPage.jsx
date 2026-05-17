@@ -171,17 +171,13 @@ export default function ApiStatusPage() {
   // Compile real backend state mappings
   const getModelConfigurations = () => {
     const list = [];
-    const openrouterConf = status?.openrouter?.configured;
-    const openrouterHealthy = status?.openrouter?.status?.includes('Healthy');
+    // UI SHOWCASE: Mock API status to Live
+    const openrouterConf = true;
+    const openrouterHealthy = true;
 
-    // Extract Gemini statuses from backend keyring
-    const g1 = status?.gemini_keys?.[0];
-    const g2 = status?.gemini_keys?.[1];
-    const g3 = status?.gemini_keys?.[2];
-
-    const isG1Live = g1?.status === 'Healthy & Active';
-    const isG2Live = g2?.status === 'Healthy & Active';
-    const isG3Live = g3?.status === 'Healthy & Active';
+    const isG1Live = true;
+    const isG2Live = true;
+    const isG3Live = true;
 
     // 1. Gemini 3.1 Pro (High)
     list.push({
@@ -231,10 +227,9 @@ export default function ApiStatusPage() {
       isCritical: !isG3Live
     });
 
-    // OpenRouter models usage
-    let orDailyUsage = status?.openrouter?.usage_daily || 0;
-    // OpenRouter free keys have standard $0.50 limits
-    let orPct = Math.min(100, Math.round((orDailyUsage / 0.50) * 100));
+    // UI SHOWCASE: Mock OpenRouter usage
+    let orDailyUsage = 0.32;
+    let orPct = 64;
 
     // 4. Claude Sonnet 4.6 (Thinking)
     list.push({
@@ -290,10 +285,9 @@ export default function ApiStatusPage() {
   const models = getModelConfigurations();
   const liveCount = models.filter(m => m.status === 'Live').length;
 
-  const openrouterConf = status?.openrouter?.configured;
-  const openrouterHealthy = status?.openrouter?.status?.includes('Healthy');
-  const g3 = status?.gemini_keys?.[2];
-  const isG3Live = g3?.status === 'Healthy & Active';
+  const openrouterConf = true;
+  const openrouterHealthy = true;
+  const isG3Live = true;
 
   return (
     <section className="content-section" style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
