@@ -41,7 +41,12 @@ class AuditAIEngine:
     }
 
     def __init__(self):
-        self.gemini_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_keys = [
+            os.getenv("GEMINI_API_KEY"),
+            os.getenv("GEMINI_API_KEY_2"),
+            os.getenv("GEMINI_API_KEY_3")
+        ]
+        self.gemini_keys = [k for k in self.gemini_keys if k]
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
         
@@ -120,26 +125,33 @@ class AuditAIEngine:
             return None
 
     async def _try_gemini(self, prompt, file_bytes=None, mime_type=None):
-        try:
-            client = genai.Client(api_key=self.gemini_key, http_options={'api_version': 'v1alpha'})
-            if file_bytes and mime_type:
-                resp = await client.aio.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
-                )
-            else:
-                resp = await client.aio.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=prompt
-                )
-            if resp and resp.text:
-                print(f"[AI] Gemini Success! Length: {len(resp.text)}")
-                return self._clean_json(resp.text)
-            print("[AI] Gemini returned empty response.")
+        if not self.gemini_keys:
+            print("[AI] No Gemini API keys configured.")
             return None
-        except Exception as e:
-            print(f"[AI] Gemini Direct failed: {e}")
-            return None
+
+        for idx, key in enumerate(self.gemini_keys):
+            try:
+                print(f"[AI] Trying Gemini Key #{idx + 1}...")
+                client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha'})
+                if file_bytes and mime_type:
+                    resp = await client.aio.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=[types.Part.from_bytes(data=file_bytes, mime_type=mime_type), prompt]
+                    )
+                else:
+                    resp = await client.aio.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=prompt
+                    )
+                if resp and resp.text:
+                    print(f"[AI] Gemini Success with Key #{idx + 1}! Length: {len(resp.text)}")
+                    return self._clean_json(resp.text)
+                print(f"[AI] Gemini returned empty response with Key #{idx + 1}.")
+            except Exception as e:
+                print(f"[AI] Gemini Direct failed with Key #{idx + 1}: {e}")
+                # Continue to next key if available
+                continue
+        return None
 
     async def _try_groq(self, prompt):
         try:
@@ -182,7 +194,7 @@ class AuditAIEngine:
         for model_id in profile.get('models', []):
             print(f"[ROUTER] Trying model: {model_id}...")
             try:
-                if "gemini" in model_id.lower() and self.gemini_key:
+                if "gemini" in model_id.lower() and self.gemini_keys:
                     res = await self._try_gemini(prompt, file_bytes, mime_type)
                 elif "groq" in model_id.lower() and self.groq_key and not is_multimodal:
                     res = await self._try_groq(prompt)
