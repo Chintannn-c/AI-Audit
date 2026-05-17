@@ -73,8 +73,8 @@ class AuditConfig:
     fuzzy_match_threshold: float = 85.0   # Score out of 100 for rapidfuzz / difflib
 
     # Vendor repeat cap per selection pass (TOD and TOC are counted independently)
-    vendor_cap_primary: int = 1    # Max appearances: set to 1 for absolute, strict non-repetition
-    vendor_cap_fallback: int = 1   # Set to 1 to match strict primary cap limits
+    vendor_cap_primary: int = 2    # Max appearances in the first-pass (unique-vendor) loops
+    vendor_cap_fallback: int = 3   # Max appearances allowed in the relaxed-fallback loops
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -696,7 +696,20 @@ class SampleEngine:
                     tod_indices.append(idx)
                     tod_mark_used(row)
 
-        # Fallback 2 has been removed to strictly enforce the primary vendor cap of 2.
+        # Fallback 2: Relax vendor cap to vendor_cap_fallback (default 3).
+        if len(tod_indices) < tod_target:
+            tod_relaxed_is_used, tod_relaxed_mark_used = self._vendor_helpers(
+                vcol, tod_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
+            remaining = data[~data.index.isin(tod_indices)].sort_values(
+                by=amt_col, ascending=False, key=abs
+            )
+            for idx, row in remaining.iterrows():
+                if len(tod_indices) >= tod_target:
+                    break
+                if not tod_relaxed_is_used(row):
+                    tod_indices.append(idx)
+                    tod_relaxed_mark_used(row)
 
         # ── TOC selection ──────────────────────────────────────────────────
         # [FIXED-3] TOC uses its own Counter, completely independent of TOD.
@@ -747,7 +760,20 @@ class SampleEngine:
                     toc_indices.append(idx)
                     toc_mark_used(row)
 
-        # Fallback TOC 2 has been removed to strictly enforce the primary vendor cap of 2.
+        # Fallback TOC 2: relaxed cap (vendor_cap_fallback).
+        if toc_target > 0 and len(toc_indices) < toc_target:
+            toc_relaxed_is_used, toc_relaxed_mark_used = self._vendor_helpers(
+                vcol, toc_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
+            pool = data[
+                ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
+            ].sort_values(by=amt_col, ascending=False, key=abs)
+            for idx, row in pool.iterrows():
+                if len(toc_indices) >= toc_target:
+                    break
+                if not toc_relaxed_is_used(row):
+                    toc_indices.append(idx)
+                    toc_relaxed_mark_used(row)
 
         return self._finalise(data, tod_indices, toc_indices, amt_col, category)
 
@@ -842,10 +868,29 @@ class SampleEngine:
                 selected_set.add(idx)
                 all_mark_used(row)
 
-        # Note: Phase 3 (relaxed cap fallback) and Phase 4 (uncapped last resort)
-        # have been removed to strictly enforce that no vendor is considered more
-        # than the primary vendor cap of 2 times across the entire sample selection,
-        # in accordance with the auditor's strict non-repetition directive.
+        # ── PHASE 3: Fallback — relax vendor cap to vendor_cap_fallback ───────
+        if len(selected_indices) < total_count_target:
+            all_relaxed_is_used, all_relaxed_mark_used = self._vendor_helpers(
+                norm_col, all_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
+            for idx, row in sorted_data.iterrows():
+                if len(selected_indices) >= total_count_target:
+                    break
+                if idx in selected_set:
+                    continue
+                if not all_relaxed_is_used(row):
+                    selected_indices.append(idx)
+                    selected_set.add(idx)
+                    all_relaxed_mark_used(row)
+
+        # ── PHASE 4: Last resort — include any remaining rows uncapped ─────────
+        if len(selected_indices) < total_count_target:
+            for idx in sorted_data.index:
+                if len(selected_indices) >= total_count_target:
+                    break
+                if idx not in selected_set:
+                    selected_indices.append(idx)
+                    selected_set.add(idx)
 
         # ── Split selected into TOD / TOC at requested ratio ──────────────────
         # selected_indices is already sorted by absolute value descending
