@@ -10,29 +10,36 @@ export function SessionProvider({ children }) {
     return localStorage.getItem('stataudit_session_id') || ''
   })
   const secretRef = useRef(localStorage.getItem('stataudit_session_secret'))
-  const initializingRef = useRef(false)
+  const handshakePromiseRef = useRef(null)
 
   const initSession = useCallback(async () => {
-    if (initializingRef.current) return
-    initializingRef.current = true
-    try {
-      const res = await nativeFetch('/api/session/create', {
-        method: 'POST',
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        localStorage.setItem('stataudit_session_secret', data.session_secret)
-        secretRef.current = data.session_secret
-        console.log('[SECURITY] Handshake successful, session active.')
-      } else {
-        console.error('[SECURITY] Handshake failed:', res.statusText)
-      }
-    } catch (err) {
-      console.error('[SECURITY] Handshake exception:', err)
-    } finally {
-      initializingRef.current = false
+    if (handshakePromiseRef.current) {
+      return handshakePromiseRef.current
     }
+
+    const promise = (async () => {
+      try {
+        const res = await nativeFetch('/api/session/create', {
+          method: 'POST',
+          credentials: 'include'
+        })
+        if (res.ok) {
+          const data = await res.json()
+          localStorage.setItem('stataudit_session_secret', data.session_secret)
+          secretRef.current = data.session_secret
+          console.log('[SECURITY] Handshake successful, session active.')
+        } else {
+          console.error('[SECURITY] Handshake failed:', res.statusText)
+        }
+      } catch (err) {
+        console.error('[SECURITY] Handshake exception:', err)
+      } finally {
+        handshakePromiseRef.current = null
+      }
+    })()
+
+    handshakePromiseRef.current = promise
+    return promise
   }, [])
 
   // Generate or retrieve session ID
