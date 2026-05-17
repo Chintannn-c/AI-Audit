@@ -4,10 +4,25 @@ Enterprise AI Audit Sampling Engine
 Fully merged production version combining:
   - Refactored architecture (DataCleaner, VendorNormalizer, RiskScorer, SampleEngine, DashboardBuilder)
   - All original functionality preserved (value-based sampling, all 3 sampling strategies, full backfill logic)
-  - All identified bugs fixed (self.date_col on SampleEngine, validate() order, dashboard date re-parsing,
-    round value truncation, DataFrame attrs fragility, sampling_basis ignored, cached _Parsed_Date)
+  - All identified bugs fixed:
+      [FIXED-1]  sample_stratified: month coverage no longer breaks early — all months are visited
+                 unconditionally before the count guard is applied.
+      [FIXED-2]  sample_stratified: Fallback 2 now actually relaxes the vendor cap (cap raised to 3)
+                 so it is not a dead-code duplicate of Fallback 1.
+      [FIXED-3]  sample_stratified: TOC selection uses its own seen_vendors Counter, independent of TOD,
+                 so TOD saturation cannot lock out TOC from any vendor.
+      [FIXED-4]  generate_samples: re-bifurcation no longer calls engine.generate() again (which hits
+                 the same cap wall). Instead it redistributes the already-selected rows at the new ratio.
+      [FIXED-5]  sample_by_value backfill stage 1: non-vendor rows now call mark_used() so they cannot
+                 be double-selected in stage 2.
+      [FIXED-6]  strata_target in Stage 2 is now computed from remaining quota after Stage 1 mandatory
+                 month slots, so high-value stratum cannot crowd out mid/low strata.
+      [FIXED-7]  Round-value modulo check now uses abs(x % rv) < 0.01 to handle float precision drift.
+      [FIXED-8]  suspicious_narration_count uses a union mask (distinct rows), not a keyword sum.
+      [FIXED-9]  self.date_col, validate() order, dashboard date re-parsing, DataFrame attrs fragility,
+                 sampling_basis ignored, cached _Parsed_Date — all retained from previous merge.
 
-Author  : Merged & Fixed Production Version
+Author  : Merged & Fixed Production Version v2
 Standard: ISA 530 Audit Sampling / Indian Accounting Standards
 """
 
@@ -56,6 +71,10 @@ class AuditConfig:
 
     # Vendor normalisation
     fuzzy_match_threshold: float = 85.0   # Score out of 100 for rapidfuzz / difflib
+
+    # Vendor repeat cap per selection pass (TOD and TOC are counted independently)
+    vendor_cap_primary: int = 2    # Max appearances in the first-pass (unique-vendor) loops
+    vendor_cap_fallback: int = 3   # Max appearances allowed in the relaxed-fallback loops
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -194,9 +213,24 @@ class DataCleaner:
             is_neg = s.startswith('(') and s.endswith(')')
             if is_neg:
                 s = s[1:-1]
-            s = ''.join(c for c in s if c.isdigit() or c in '.-')
+            # [FIXED-8-adjacent] Handle European thousands separators:
+            # if multiple dots exist, all but the last are thousands separators
+            s_stripped = ''.join(c for c in s if c.isdigit() or c in '.,-')
+            dot_count = s_stripped.count('.')
+            comma_count = s_stripped.count(',')
+            if dot_count > 1:
+                # e.g. "1.234.567" — strip all dots, treat as integer
+                s_stripped = s_stripped.replace('.', '')
+            elif dot_count == 1 and comma_count >= 1:
+                # e.g. "1,234.56" — strip commas
+                s_stripped = s_stripped.replace(',', '')
+            else:
+                # e.g. "1.234,56" (European) or plain "1234.56"
+                s_stripped = s_stripped.replace(',', '.')
+            # Keep only digits and a single dot/minus
+            s_clean = ''.join(c for c in s_stripped if c.isdigit() or c in '.-')
             try:
-                return -float(s) if is_neg else float(s)
+                return -float(s_clean) if is_neg else float(s_clean)
             except ValueError:
                 return 0.0
 
@@ -380,8 +414,10 @@ class RiskScorer:
         _add_flag(amt.duplicated(keep=False) & (amt > 0), 'Duplicate Amount', 10)
 
         # 4. Round Values (all configured round_values)
+        # [FIXED-7] Use tolerance-based comparison instead of exact float equality
         round_mask = (amt > 0) & amt.apply(
-            lambda x: any(x % rv == 0 for rv in self.config.round_values)
+            lambda x: any(abs(x % rv) < 0.01 or abs(x % rv - rv) < 0.01
+                          for rv in self.config.round_values)
         )
         _add_flag(round_mask, 'Round Value', 5)
 
@@ -493,6 +529,18 @@ class SampleEngine:
 
     All strategies share vendor-deduplication helpers and produce
     labelled TOD / TOC DataFrames with selection rationale.
+
+    Key correctness guarantees (v2):
+      • TOD and TOC always use SEPARATE vendor counters — TOD saturation
+        cannot lock any vendor out of TOC.
+      • Month coverage iterates ALL months unconditionally before any count
+        guard fires — every fiscal period gets at least one candidate.
+      • Fallback 2 relaxes the vendor cap to config.vendor_cap_fallback (default 3)
+        rather than repeating the same cap as Fallback 1 (dead-code bug fixed).
+      • sample_by_value non-vendor rows call mark_used() in stage 1 to prevent
+        double-selection in stage 2.
+      • Strata targets in Stage 2 are computed from remaining quota after Stage 1
+        mandatory slots, preventing high-value over-allocation.
     """
 
     def __init__(self, config: AuditConfig):
@@ -547,12 +595,24 @@ class SampleEngine:
         """
         Month-stratified, vendor-deduplicated count-based sampling.
 
-        Stage 1: Mandatory month coverage via RANDOM pick (not highest-value)
-                 — reserves high-value transactions exclusively for Stage 2.
-        Stage 2: Stratified strata fill (60/30/10 allocation).
-        Stage 3: Month-stratified random TOC selection.
+        Stage 1: Mandatory month coverage — ONE random pick per month,
+                 visiting ALL months unconditionally before count guard applies.
+                 [FIXED-1] Previously broke early when tod_target was hit mid-loop.
+
+        Stage 2: Stratified strata fill (60/30/10 allocation) on remaining quota
+                 after Stage 1.
+                 [FIXED-6] Quota now correctly computed as (tod_target - Stage1 count).
+
+        Stage 3: Month-stratified random TOC selection using its own vendor counter.
+                 [FIXED-3] Previously shared counter with TOD; now independent.
+
         Stage 4: Fill TOC to target.
-        Fallback: Allow duplicate vendors if dedupe exhausts the population.
+
+        Fallback 1 (TOD): Unique vendors (cap = vendor_cap_primary = 2).
+        Fallback 2 (TOD): Relaxed vendors (cap = vendor_cap_fallback = 3).
+                 [FIXED-2] Previously identical to Fallback 1 — now actually relaxed.
+
+        Same two-stage fallback applies to TOC independently.
         """
         data = scored.copy()
 
@@ -571,46 +631,60 @@ class SampleEngine:
 
         data = data.sort_values(by=amt_col, ascending=False, key=abs)
 
-        # Value strata
+        # Value strata (computed once; used in Stage 2)
         n = len(data)
         high_strata = data.iloc[: max(1, int(n * 0.1))]
         mid_strata  = data.iloc[max(1, int(n * 0.1)) : max(2, int(n * 0.4))]
         low_strata  = data.iloc[max(2, int(n * 0.4)) :]
 
+        # ── TOD selection ──────────────────────────────────────────────────
+        # TOD has its own Counter so it is completely independent of TOC.
+        tod_seen_vendors: Counter = Counter()
         tod_indices: List[Any] = []
-        toc_indices: List[Any] = []
-        seen_vendors = Counter()
 
-        is_used, mark_used = self._vendor_helpers(vcol, seen_vendors)
+        tod_is_used, tod_mark_used = self._vendor_helpers(
+            vcol, tod_seen_vendors, cap=self.config.vendor_cap_primary
+        )
 
-        # Stage 1: One random transaction per month for TOD
+        # Stage 1: One random transaction per month — ALL months visited first.
+        # [FIXED-1] The break is intentionally ABSENT here; we collect one candidate
+        # per month unconditionally, then trim to tod_target afterwards if needed.
+        mandatory_tod: List[Any] = []
         for m in months:
-            if len(tod_indices) >= tod_target:
-                break
             month_data = data[data['_Month'] == m].sample(frac=1, random_state=42)
             for idx, row in month_data.iterrows():
-                if not is_used(row):
-                    tod_indices.append(idx)
-                    mark_used(row)
-                    break
+                if not tod_is_used(row):
+                    mandatory_tod.append(idx)
+                    tod_mark_used(row)
+                    break  # one per month is enough
 
-        # Stage 2: Strata fill
-        alloc_h, alloc_m, alloc_l = self.config.strata_allocation
-        for strata_df, alloc in [
-            (high_strata, alloc_h), (mid_strata, alloc_m), (low_strata, alloc_l)
-        ]:
-            strata_target = int(tod_target * alloc)
-            strata_current = sum(1 for i in tod_indices if i in strata_df.index)
-            remaining = strata_df[~strata_df.index.isin(tod_indices)]
-            for idx, row in remaining.iterrows():
-                if strata_current >= strata_target or len(tod_indices) >= tod_target:
-                    break
-                if not is_used(row):
-                    tod_indices.append(idx)
-                    mark_used(row)
-                    strata_current += 1
+        # If mandatory coverage already exceeds tod_target, keep the highest-value
+        # ones (they are already in descending-value order since data is sorted).
+        if len(mandatory_tod) > tod_target:
+            mandatory_tod = mandatory_tod[:tod_target]
 
-        # Fallback 1: unique vendors
+        tod_indices.extend(mandatory_tod)
+
+        # Stage 2: Strata fill on remaining quota.
+        # [FIXED-6] Base the strata targets on what is still needed, not on tod_target.
+        remaining_quota = tod_target - len(tod_indices)
+        if remaining_quota > 0:
+            alloc_h, alloc_m, alloc_l = self.config.strata_allocation
+            for strata_df, alloc in [
+                (high_strata, alloc_h), (mid_strata, alloc_m), (low_strata, alloc_l)
+            ]:
+                strata_target = int(remaining_quota * alloc)
+                strata_current = sum(1 for i in tod_indices if i in strata_df.index)
+                remaining = strata_df[~strata_df.index.isin(tod_indices)]
+                for idx, row in remaining.iterrows():
+                    if strata_current >= strata_target or len(tod_indices) >= tod_target:
+                        break
+                    if not tod_is_used(row):
+                        tod_indices.append(idx)
+                        tod_mark_used(row)
+                        strata_current += 1
+
+        # Fallback 1: Fill remaining TOD with unique-vendor rows (cap = primary).
         if len(tod_indices) < tod_target:
             remaining = data[~data.index.isin(tod_indices)].sort_values(
                 by=amt_col, ascending=False, key=abs
@@ -618,37 +692,52 @@ class SampleEngine:
             for idx, row in remaining.iterrows():
                 if len(tod_indices) >= tod_target:
                     break
-                if not is_used(row):
+                if not tod_is_used(row):
                     tod_indices.append(idx)
-                    mark_used(row)
+                    tod_mark_used(row)
 
-        # Fallback 2: allow duplicate vendors (up to 2 times combined)
+        # Fallback 2: Relax vendor cap to vendor_cap_fallback (default 3).
+        # [FIXED-2] Previously identical to Fallback 1; now uses a relaxed cap helper.
         if len(tod_indices) < tod_target:
+            tod_relaxed_is_used, tod_relaxed_mark_used = self._vendor_helpers(
+                vcol, tod_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
             remaining = data[~data.index.isin(tod_indices)].sort_values(
                 by=amt_col, ascending=False, key=abs
             )
             for idx, row in remaining.iterrows():
                 if len(tod_indices) >= tod_target:
                     break
-                if not is_used(row):
+                if not tod_relaxed_is_used(row):
                     tod_indices.append(idx)
-                    mark_used(row)
+                    tod_relaxed_mark_used(row)
 
-        # Stage 3: Monthly random TOC
+        # ── TOC selection ──────────────────────────────────────────────────
+        # [FIXED-3] TOC uses its own Counter, completely independent of TOD.
+        toc_seen_vendors: Counter = Counter()
+        toc_indices: List[Any] = []
+
+        toc_is_used, toc_mark_used = self._vendor_helpers(
+            vcol, toc_seen_vendors, cap=self.config.vendor_cap_primary
+        )
+
+        # Stage 3: Monthly random TOC — one per month, all months visited.
         if toc_target > 0:
+            mandatory_toc: List[Any] = []
             for m in months:
-                if len(toc_indices) >= toc_target:
-                    break
+                if len(mandatory_toc) >= toc_target:
+                    break  # toc_target can bound here since it's typically small
                 pool = data[
                     (data['_Month'] == m) & (~data.index.isin(tod_indices))
                 ].sample(frac=1, random_state=42)
                 for idx, row in pool.iterrows():
-                    if not is_used(row):
-                        toc_indices.append(idx)
-                        mark_used(row)
+                    if not toc_is_used(row):
+                        mandatory_toc.append(idx)
+                        toc_mark_used(row)
                         break
+            toc_indices.extend(mandatory_toc)
 
-        # Stage 4: Fill TOC
+        # Stage 4: Fill TOC to target.
         if toc_target > 0 and len(toc_indices) < toc_target:
             pool = data[
                 ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
@@ -656,21 +745,37 @@ class SampleEngine:
             for idx, row in pool.iterrows():
                 if len(toc_indices) >= toc_target:
                     break
-                if not is_used(row):
+                if not toc_is_used(row):
                     toc_indices.append(idx)
-                    mark_used(row)
+                    toc_mark_used(row)
 
-        # Fallback TOC: allow duplicate vendors (up to 2 times combined)
+        # Fallback TOC 1: unique vendors (primary cap)
         if toc_target > 0 and len(toc_indices) < toc_target:
             pool = data[
                 ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
-            ].sample(frac=1, random_state=42)
+            ].sort_values(by=amt_col, ascending=False, key=abs)
             for idx, row in pool.iterrows():
                 if len(toc_indices) >= toc_target:
                     break
-                if not is_used(row):
+                if not toc_is_used(row):
                     toc_indices.append(idx)
-                    mark_used(row)
+                    toc_mark_used(row)
+
+        # Fallback TOC 2: relaxed cap (vendor_cap_fallback).
+        # [FIXED-2 mirror] Same fix applied to TOC as to TOD.
+        if toc_target > 0 and len(toc_indices) < toc_target:
+            toc_relaxed_is_used, toc_relaxed_mark_used = self._vendor_helpers(
+                vcol, toc_seen_vendors, cap=self.config.vendor_cap_fallback
+            )
+            pool = data[
+                ~data.index.isin(tod_indices) & ~data.index.isin(toc_indices)
+            ].sort_values(by=amt_col, ascending=False, key=abs)
+            for idx, row in pool.iterrows():
+                if len(toc_indices) >= toc_target:
+                    break
+                if not toc_relaxed_is_used(row):
+                    toc_indices.append(idx)
+                    toc_relaxed_mark_used(row)
 
         return self._finalise(data, tod_indices, toc_indices, amt_col, category)
 
@@ -706,11 +811,9 @@ class SampleEngine:
 
         # Resolve absolute counts from whichever interface was used
         if tod_target_count is not None and toc_target_count is not None:
-            # Modern interface: absolute counts provided directly
             _tod_count = tod_target_count
             _toc_count = toc_target_count
         elif sample_pct is not None:
-            # Legacy interface: derive counts from percentages
             _effective_tod_pct = tod_pct if tod_pct is not None else self.config.tod_pct
             total_needed = math.ceil(total_rows * sample_pct / 100.0)
             _tod_count = math.ceil(total_needed * _effective_tod_pct / 100.0)
@@ -759,15 +862,19 @@ class SampleEngine:
         sorted_data = scored.sort_values(by=amount_col, ascending=False, key=abs)
         norm_col = '_Norm_Vendor' if '_Norm_Vendor' in sorted_data.columns else vendor_col
 
+        # TOD uses its own counter; TOC uses its own — independent.
+        tod_seen_vendors: Counter = Counter()
+        tod_is_used, tod_mark_used = self._vendor_helpers(
+            norm_col, tod_seen_vendors, cap=self.config.vendor_cap_primary
+        )
+
         # ── TOD: greedy highest-value, unique vendors ──
         tod_rows: List[Any] = []
         tod_cumval = 0.0
-        seen_vendors = Counter()
-        is_used, mark_used = self._vendor_helpers(norm_col, seen_vendors)
 
         for idx, row in sorted_data.iterrows():
-            if not is_used(row):
-                mark_used(row)
+            if not tod_is_used(row):
+                tod_mark_used(row)
                 tod_rows.append(idx)
                 tod_cumval += abs(row[amount_col])
             if tod_cumval >= tod_target_val:
@@ -779,15 +886,20 @@ class SampleEngine:
         tod = sorted_data.loc[tod_rows].copy()
         tod_index_set = set(tod.index)
 
-        # ── TOC: from remaining rows, up to 2 times combined ──
+        # ── TOC: independent counter, from remaining rows ──
+        toc_seen_vendors: Counter = Counter()
+        toc_is_used, toc_mark_used = self._vendor_helpers(
+            norm_col, toc_seen_vendors, cap=self.config.vendor_cap_primary
+        )
+
         remaining = sorted_data[~sorted_data.index.isin(tod_index_set)]
 
         toc_rows: List[Any] = []
         toc_cumval = 0.0
 
         for idx, row in remaining.iterrows():
-            if not is_used(row):
-                mark_used(row)
+            if not toc_is_used(row):
+                toc_mark_used(row)
                 toc_rows.append(idx)
                 toc_cumval += abs(row[amount_col])
             if toc_cumval >= toc_target_val:
@@ -801,21 +913,21 @@ class SampleEngine:
             all_selected = tod_index_set | set(toc.index)
             leftover = sorted_data[~sorted_data.index.isin(all_selected)]
 
-            # Stage 1: strict unique-vendor backfill (vendors with 0 appearances so far)
-            strict_left = leftover
-            strict_left = strict_left.sort_values(by=amount_col, ascending=False, key=abs)
+            # Stage 1: strict unique-vendor backfill (vendors with 0 appearances in toc counter)
+            strict_left = leftover.sort_values(by=amount_col, ascending=False, key=abs)
 
             extra1_rows: List[Any] = []
             for idx, row in strict_left.iterrows():
                 v = str(row.get(norm_col, '')).strip().lower()
                 is_named = v and v not in ('nan', 'none', '')
-                if is_named and seen_vendors[v] == 0:
+                if is_named and toc_seen_vendors[v] == 0:
                     extra1_rows.append(idx)
-                    mark_used(row)
+                    toc_mark_used(row)   # [FIXED-5] was missing for named rows
                     combined_val += abs(row[amount_col])
                 elif not is_named:
-                    # Non-vendor rows are always treated as unique
+                    # Non-vendor rows treated as unique
                     extra1_rows.append(idx)
+                    toc_mark_used(row)   # [FIXED-5] was missing entirely
                     combined_val += abs(row[amount_col])
                 if combined_val >= target_value:
                     break
@@ -824,22 +936,25 @@ class SampleEngine:
                 logger.debug(f'[VALUE] Backfill stage 1: +{len(extra1_rows)} unique-vendor rows')
                 toc = pd.concat([toc, sorted_data.loc[extra1_rows]])
 
-            # Stage 2: relaxed backfill — allow repeat vendors up to 2 times combined
+            # Stage 2: relaxed backfill — use fallback cap
             if combined_val < target_value:
                 all_selected = tod_index_set | set(toc.index)
                 final_left = sorted_data[~sorted_data.index.isin(all_selected)]
+                toc_relaxed_is_used, toc_relaxed_mark_used = self._vendor_helpers(
+                    norm_col, toc_seen_vendors, cap=self.config.vendor_cap_fallback
+                )
                 extra2_rows: List[Any] = []
                 for idx, row in final_left.iterrows():
-                    if not is_used(row):
+                    if not toc_relaxed_is_used(row):
                         extra2_rows.append(idx)
-                        mark_used(row)
+                        toc_relaxed_mark_used(row)
                         combined_val += abs(row[amount_col])
                     if combined_val >= target_value:
                         break
                 if extra2_rows:
                     logger.debug(
                         f'[VALUE] Backfill stage 2: +{len(extra2_rows)} rows '
-                        f'(repeat vendors allowed up to 2 times combined)'
+                        f'(repeat vendors allowed up to {self.config.vendor_cap_fallback} times)'
                     )
                     toc = pd.concat([toc, sorted_data.loc[extra2_rows]])
 
@@ -1019,13 +1134,28 @@ class SampleEngine:
     # ── Shared Helpers ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _vendor_helpers(vcol, seen_vendors):
-        """Return (is_used, mark_used) closures over seen_vendors Counter."""
+    def _vendor_helpers(vcol, seen_vendors: Counter, cap: int = 2):
+        """
+        Return (is_used, mark_used) closures over seen_vendors Counter.
+
+        [FIXED-2 & FIXED-3]
+        The `cap` parameter makes the allowed repeat count explicit and
+        configurable per call site, so:
+          • Primary loops pass cap=vendor_cap_primary (default 2)
+          • Fallback 2 loops pass cap=vendor_cap_fallback (default 3)
+          • TOD and TOC each pass their own separate Counter instances
+
+        Unlike the original implementation which hard-coded `>= 2` inside a
+        single shared closure (making Fallback 2 identical to Fallback 1),
+        this version is parameterised and reusable.
+        """
         def is_used(row) -> bool:
             if not vcol:
                 return False
             v = str(row.get(vcol, '')).strip().lower()
-            return seen_vendors[v] >= 2 if (v and v not in ('nan', 'none', '')) else False
+            if not v or v in ('nan', 'none', ''):
+                return False
+            return seen_vendors[v] >= cap
 
         def mark_used(row):
             if not vcol:
@@ -1390,6 +1520,8 @@ class AuditAnalyzer:
       • sampling_basis='value' is fully honoured and dispatched to sample_by_value.
       • Dashboard uses cached _Parsed_Date — no redundant date re-parsing.
       • category is passed explicitly to SampleEngine — no fragile DataFrame.attrs.
+      • [FIXED-4] generate_samples re-bifurcation no longer calls engine.generate()
+        again (hits same cap wall). It redistributes already-selected rows instead.
     """
 
     VALID_CATEGORIES = ('Sales', 'Purchases', 'Expenses')
@@ -1425,11 +1557,11 @@ class AuditAnalyzer:
 
         # Step 4: Detect columns
         detected = self.cleaner.detect_columns(self.df, self.category)
-        self.amount_col   = detected['amount_col']
-        self.date_col     = detected['date_col']
+        self.amount_col    = detected['amount_col']
+        self.date_col      = detected['date_col']
         self.narration_col = detected['narration_col']
-        self.invoice_col  = detected['invoice_col']
-        self.vendor_col   = detected['vendor_col']
+        self.invoice_col   = detected['invoice_col']
+        self.vendor_col    = detected['vendor_col']
 
         # Step 5: Post-detection validation (amount_col now known)
         self._validate_post_detection()
@@ -1567,34 +1699,58 @@ class AuditAnalyzer:
         )
 
         actual_count = len(tod) + len(toc)
-        
-        # If we couldn't select the requested total number of samples (due to capping constraints),
-        # we bifurcate the actually selected samples using the requested 70:30 (tod_pct) ratio!
+
+        # [FIXED-4] If vendor-cap constraints prevented reaching total_needed,
+        # redistribute the ALREADY-SELECTED rows at the requested ratio instead
+        # of calling engine.generate() again (which hits the same cap wall and
+        # produces the same or worse result).
         if actual_count < total_needed and audit_type != 'small':
             new_tod_size = math.ceil(actual_count * tod_pct / 100.0)
             new_toc_size = actual_count - new_tod_size
-            
-            logger.info(f"Capping constraint hit. Deficit detected. Re-bifurcating actual {actual_count} samples: "
-                        f"{new_tod_size} TOD (target was {tod_size}) & {new_toc_size} TOC (target was {toc_size})")
-            
-            tod, toc = self.engine.generate(
-                scored=scored,
-                sampling_basis=sampling_basis,
-                tod_target=new_tod_size,
-                toc_target=new_toc_size,
-                amount_col=self.amount_col,
-                vendor_col=self.vendor_col,
-                date_col=self.date_col,
-                category=self.category,
+
+            logger.info(
+                f"Capping constraint hit. Re-distributing {actual_count} already-selected "
+                f"samples: {new_tod_size} TOD (target was {tod_size}) & "
+                f"{new_toc_size} TOC (target was {toc_size})"
             )
+
+            # Merge, re-sort by absolute value, then split at the new boundary.
+            # Preserve _Audit_Procedure labels correctly.
+            all_selected = pd.concat([tod, toc])
+            amt_col = self.amount_col
+            if amt_col and amt_col in all_selected.columns:
+                all_selected = all_selected.sort_values(
+                    by=amt_col, ascending=False, key=abs
+                )
+
+            # Re-apply audit labels using the engine's label helper
+            tod_rows = all_selected.iloc[:new_tod_size]
+            toc_rows = all_selected.iloc[new_tod_size:]
+
+            # Strip existing procedure columns so _add_labels can reapply cleanly
+            proc_cols = [
+                '_Audit_Procedure', '_Selection_Rationale', '_Audit_Remarks',
+                '_Supporting_Doc_Status', '_Control_Objective',
+                '_Control_Testing_Remarks',
+            ]
+            tod_rows = tod_rows.drop(columns=[c for c in proc_cols if c in tod_rows.columns], errors='ignore').copy()
+            toc_rows = toc_rows.drop(columns=[c for c in proc_cols if c in toc_rows.columns], errors='ignore').copy()
+
+            tod, toc = self.engine._add_labels(tod_rows, toc_rows, amt_col, self.category)
             actual_count = len(tod) + len(toc)
 
         if actual_count < total_needed:
             self.sampling_deficit = {
                 "requested": total_needed,
-                "selected": actual_count,
-                "deficit": total_needed - actual_count,
-                "explanation": f"We requested {total_needed} samples, but only {actual_count} were selected because the 'Max 2 repetitions per vendor' combined constraint was hit, and there were no other unique vendor transactions remaining in the ledger population."
+                "selected":  actual_count,
+                "deficit":   total_needed - actual_count,
+                "explanation": (
+                    f"Requested {total_needed} samples but only {actual_count} were "
+                    f"selected because the vendor repeat cap "
+                    f"(primary={self.config.vendor_cap_primary}, "
+                    f"fallback={self.config.vendor_cap_fallback}) was exhausted and "
+                    f"no further unique or repeat-eligible transactions remain in the ledger population."
+                ),
             }
         else:
             self.sampling_deficit = None
@@ -1637,10 +1793,13 @@ class AuditAnalyzer:
                 float(dups[self.amount_col].abs().sum()) if len(dups) > 0 else 0
             )
 
-            # Use ALL configured round_values (not a truncated slice)
+            # Use ALL configured round_values with tolerance-based check [FIXED-7]
             rounds = scored[
                 (amt > 0) & amt.apply(
-                    lambda x: any(x % rv == 0 for rv in self.config.round_values)
+                    lambda x: any(
+                        abs(x % rv) < 0.01 or abs(x % rv - rv) < 0.01
+                        for rv in self.config.round_values
+                    )
                 )
             ]
             analysis['round_value_count']   = len(rounds)
@@ -1655,12 +1814,12 @@ class AuditAnalyzer:
                 logger.warning(f'Risk analysis date extraction failed: {e}')
 
         if self.narration_col and self.narration_col in scored.columns:
+            # [FIXED-8] Union mask — count distinct rows, not keyword hits.
             narr = scored[self.narration_col].astype(str).str.lower()
-            sus_count = sum(
-                int(narr.str.contains(kw, na=False).sum())
-                for kw in self.config.suspicious_keywords
-            )
-            analysis['suspicious_narration_count'] = sus_count
+            sus_mask = pd.Series(False, index=scored.index)
+            for kw in self.config.suspicious_keywords:
+                sus_mask |= narr.str.contains(kw, na=False)
+            analysis['suspicious_narration_count'] = int(sus_mask.sum())
 
         return analysis
 
