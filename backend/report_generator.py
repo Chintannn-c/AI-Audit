@@ -48,18 +48,26 @@ class AuditReportGenerator:
         vnum_fmt = workbook.add_format({'border': 1, 'num_format': '#,##0.00'})
         pct_fmt = workbook.add_format({'border': 1, 'num_format': '0.0%'})
         
+        # Risk color formats for risk distribution reports
+        high_fmt = workbook.add_format({'border': 1, 'bg_color': '#fecaca', 'font_color': '#991b1b', 'bold': True})
+        med_fmt = workbook.add_format({'border': 1, 'bg_color': '#fef3c7', 'font_color': '#92400e', 'bold': True})
+        low_fmt = workbook.add_format({'border': 1, 'bg_color': '#dcfce7', 'font_color': '#166534', 'bold': True})
+        
         if report_type == 'sampling':
             # ── Sheet 1: Original Ledger ──
-            self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, None)
+            self._write_data_sheet(workbook, 'Original Ledger', self.original_df, header_fmt, cell_fmt, vnum_fmt)
             
             # ── Sheet 2: TOD Samples ──
-            self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, None)
+            self._write_data_sheet(workbook, 'TOD Samples', self.tod, header_fmt, cell_fmt, vnum_fmt)
 
             # ── Sheet 3: TOC Samples ──
-            self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, None)
+            self._write_data_sheet(workbook, 'TOC Samples', self.toc, header_fmt, cell_fmt, vnum_fmt)
 
             # ── Sheet 4: Audit Summary ──
             self._write_summary_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, pct_fmt)
+
+            # ── Sheet 4.5: Risk Analysis ──
+            self._write_risk_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt, high_fmt, med_fmt, low_fmt)
 
             # ── Sheet 5: Sampling Explanation (conditional) ──
             if self.deficit_info:
@@ -69,8 +77,7 @@ class AuditReportGenerator:
             self._write_planning_sheet(workbook, title_fmt, sub_fmt, lbl_fmt, val_fmt, vnum_fmt)
         else:
             # ── Sheet 1: Vouching Reconciliation ──
-            if vouching_results:
-                self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
+            self._write_vouching_reconciliation_sheet(workbook, vouching_results, title_fmt, header_fmt, cell_fmt)
 
         workbook.close()
         output.seek(0)
@@ -86,6 +93,11 @@ class AuditReportGenerator:
         ws.write(3, 0, "1. Original Invoice")
         ws.write(4, 0, "2. Approval Of Expense")
         ws.write(5, 0, "3. Entry In Bank Statement")
+
+        if not results:
+            ws.write(7, 0, "No vouching results available.", wb.add_format({'bold': True, 'font_color': '#b91c1c'}))
+            ws.write(8, 0, "Please perform voucher audits in the 'Vouching' tab to auto-populate forensic reconciliation columns.", cell_fmt)
+            return
 
         # Table Headers (Multi-row)
         # Row 7: Grouped headers
@@ -527,7 +539,12 @@ class AuditReportGenerator:
                 tot_sel = tod_sel + toc_sel
                 
                 if tot_sel >= 2:
-                    status = "CAPPED: Hit maximum repetition limit (2)"
+                    if tot_sel == 2:
+                        status = "CAPPED: Hit primary repetition limit (2)"
+                    elif tot_sel == 3:
+                        status = "CAPPED: Hit relaxed fallback repetition limit (3)"
+                    else:
+                        status = f"Selected: Cap relaxed to satisfy target size ({tot_sel})"
                 elif tot_sel > 0 and tot_sel == avail:
                     status = "EXHAUSTED: All vendor transactions selected"
                 elif tot_sel > 0:
