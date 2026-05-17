@@ -463,19 +463,34 @@ class AuditAIEngine:
                     elif resp.status_code == 429:
                         model_info["status"] = "Rate Limited"
                         model_info["latency_ms"] = latency
+                        is_daily = False
+                        try:
+                            resp_data = resp.json()
+                            err_msg = str(resp_data).lower()
+                            if "day" in err_msg or "daily" in err_msg or "per_day" in err_msg:
+                                is_daily = True
+                        except Exception:
+                            pass
+                        model_info["is_daily_exhausted"] = is_daily
                     else:
                         model_info["status"] = "Error"
             except Exception as e:
                 err_str = f"{type(e).__name__}: {str(e)}".lower()
                 if "429" in err_str or "quota" in err_str or "limit" in err_str or "exhausted" in err_str:
                     model_info["status"] = "Rate Limited"
+                    model_info["is_daily_exhausted"] = "day" in err_str or "daily" in err_str or "quota" in err_str
                 else:
                     model_info["status"] = "Error"
             
             # Align limits perfectly for Rate Limited / Quota Exceeded nodes
             if model_info["status"] == "Rate Limited":
-                model_info["used_today"] = 1500
-                model_info["remaining"] = 0
+                if model_info.get("is_daily_exhausted"):
+                    model_info["used_today"] = 1500
+                    model_info["remaining"] = 0
+                else:
+                    used_sim = int((1 - (reset_seconds / 86400)) * 1500 * 0.18)
+                    model_info["used_today"] = used_sim
+                    model_info["remaining"] = 1500 - used_sim
                 model_info["rpm_remaining"] = 0
                 model_info["tpm_remaining"] = 0
             elif model_info["status"] == "Error":
@@ -532,6 +547,14 @@ class AuditAIEngine:
                         groq_model["remaining"] = 14400 - used_sim
                     elif resp.status_code == 429:
                         groq_model["status"] = "Rate Limited"
+                        is_daily = False
+                        try:
+                            err_msg = resp.text.lower()
+                            if "day" in err_msg or "daily" in err_msg or "rpd" in err_msg:
+                                is_daily = True
+                        except Exception:
+                            pass
+                        groq_model["is_daily_exhausted"] = is_daily
                     else:
                         groq_model["status"] = f"Error {resp.status_code}"
             except Exception:
@@ -539,8 +562,13 @@ class AuditAIEngine:
             
             # Align limits perfectly for Rate Limited / Connection Failed nodes
             if groq_model["status"] == "Rate Limited":
-                groq_model["used_today"] = 14400
-                groq_model["remaining"] = 0
+                if groq_model.get("is_daily_exhausted"):
+                    groq_model["used_today"] = 14400
+                    groq_model["remaining"] = 0
+                else:
+                    used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.12)
+                    groq_model["used_today"] = used_sim
+                    groq_model["remaining"] = 14400 - used_sim
                 groq_model["rpm_remaining"] = 0
                 groq_model["tpm_remaining"] = 0
             elif groq_model["status"] in ("Connection Failed", "Disabled") or "Error" in groq_model["status"]:
@@ -592,14 +620,27 @@ class AuditAIEngine:
                         mistral_model["remaining"] = 10000 - used_sim
                     elif resp.status_code == 429:
                         mistral_model["status"] = "Rate Limited"
+                        is_daily = False
+                        try:
+                            err_msg = resp.text.lower()
+                            if "day" in err_msg or "daily" in err_msg or "month" in err_msg:
+                                is_daily = True
+                        except Exception:
+                            pass
+                        mistral_model["is_daily_exhausted"] = is_daily
                     else:
                         mistral_model["status"] = f"Error {resp.status_code}"
             except Exception:
                 mistral_model["status"] = "Connection Failed"
                 
             if mistral_model["status"] == "Rate Limited":
-                mistral_model["used_today"] = 10000
-                mistral_model["remaining"] = 0
+                if mistral_model.get("is_daily_exhausted"):
+                    mistral_model["used_today"] = 10000
+                    mistral_model["remaining"] = 0
+                else:
+                    used_sim = int((1 - (reset_seconds / 86400)) * 10000 * 0.05)
+                    mistral_model["used_today"] = used_sim
+                    mistral_model["remaining"] = 10000 - used_sim
                 mistral_model["rpm_remaining"] = 0
                 mistral_model["tpm_remaining"] = 0
             elif mistral_model["status"] in ("Connection Failed", "Disabled") or "Error" in mistral_model["status"]:
