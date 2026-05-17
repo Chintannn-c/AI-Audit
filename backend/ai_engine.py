@@ -525,81 +525,99 @@ class AuditAIEngine:
 
         # 2. Groq Key Check (Direct)
         if self.groq_key:
-            masked_key = f"{self.groq_key[:8]}..." if len(self.groq_key) > 8 else "Key"
-            groq_model = {
-                "id": "groq_speed",
-                "model": "llama-3.3-70b-versatile",
-                "provider": "Groq",
-                "api_key_name": "Groq Production Key",
-                "status": "Disabled",
-                "priority": len(self.gemini_keys) + 1,
-                "daily_limit": 14400,
-                "used_today": 0,
-                "remaining": 14400,
-                "rpm_remaining": 30,
-                "tpm_remaining": 6000,
-                "reset_seconds": reset_seconds,
-                "latency_ms": None,
-                "last_active": "Unavailable"
-            }
-            start_time = datetime.datetime.now()
-            try:
-                async with httpx.AsyncClient(timeout=8.0) as client:
-                    headers = {"Authorization": f"Bearer {self.groq_key}", "Content-Type": "application/json"}
-                    payload = {
-                        "model": "llama-3.3-70b-versatile",
-                        "messages": [{"role": "user", "content": "Hi"}],
-                        "max_tokens": 5
-                    }
-                    resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
-                    latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
-                    if resp.status_code == 200:
-                        groq_model["status"] = "Live"
-                        groq_model["latency_ms"] = latency
-                        groq_model["last_active"] = "Active now"
-                        
-                        # Dynamic rate limits parsing from Groq response headers
-                        rpm_header = resp.headers.get("x-ratelimit-remaining-requests")
-                        tpm_header = resp.headers.get("x-ratelimit-remaining-tokens")
-                        if rpm_header: groq_model["rpm_remaining"] = int(rpm_header)
-                        if tpm_header: groq_model["tpm_remaining"] = int(tpm_header)
-                        
-                        used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.12)
-                        groq_model["used_today"] = used_sim
-                        groq_model["remaining"] = 14400 - used_sim
-                    elif resp.status_code == 429:
-                        groq_model["status"] = "Rate Limited"
-                        is_daily = False
-                        try:
-                            err_msg = resp.text.lower()
-                            if "day" in err_msg or "daily" in err_msg or "rpd" in err_msg:
-                                is_daily = True
-                        except Exception:
-                            pass
-                        groq_model["is_daily_exhausted"] = is_daily
-                    else:
-                        groq_model["status"] = f"Error {resp.status_code}"
-            except Exception:
-                groq_model["status"] = "Connection Failed"
+            groq_configs = [
+                {
+                    "id": "groq_versatile",
+                    "model": "llama-3.3-70b-versatile",
+                    "daily_limit": 1000,
+                    "tpm": 12000,
+                    "rpm": 30
+                },
+                {
+                    "id": "groq_instant",
+                    "model": "llama-3.1-8b-instant",
+                    "daily_limit": 14400,
+                    "tpm": 6000,
+                    "rpm": 30
+                }
+            ]
             
-            # Align limits perfectly for Rate Limited / Connection Failed nodes
-            if groq_model["status"] == "Rate Limited":
-                if groq_model.get("is_daily_exhausted"):
-                    groq_model["used_today"] = 14400
-                    groq_model["remaining"] = 0
-                else:
-                    used_sim = int((1 - (reset_seconds / 86400)) * 14400 * 0.12)
-                    groq_model["used_today"] = used_sim
-                    groq_model["remaining"] = 14400 - used_sim
-                groq_model["rpm_remaining"] = 0
-                groq_model["tpm_remaining"] = 0
-            elif groq_model["status"] in ("Connection Failed", "Disabled") or "Error" in groq_model["status"]:
-                groq_model["used_today"] = 0
-                groq_model["remaining"] = 0
-                groq_model["rpm_remaining"] = 0
-                groq_model["tpm_remaining"] = 0
+            for g_idx, cfg in enumerate(groq_configs):
+                masked_key = f"{self.groq_key[:8]}..." if len(self.groq_key) > 8 else "Key"
+                groq_model = {
+                    "id": cfg["id"],
+                    "model": cfg["model"],
+                    "provider": "Groq",
+                    "api_key_name": "Groq Production Key",
+                    "status": "Disabled",
+                    "priority": len(self.gemini_keys) + 1 + g_idx,
+                    "daily_limit": cfg["daily_limit"],
+                    "used_today": 0,
+                    "remaining": cfg["daily_limit"],
+                    "rpm_remaining": cfg["rpm"],
+                    "tpm_remaining": cfg["tpm"],
+                    "reset_seconds": reset_seconds,
+                    "latency_ms": None,
+                    "last_active": "Unavailable"
+                }
+                start_time = datetime.datetime.now()
+                try:
+                    async with httpx.AsyncClient(timeout=8.0) as client:
+                        headers = {"Authorization": f"Bearer {self.groq_key}", "Content-Type": "application/json"}
+                        payload = {
+                            "model": cfg["model"],
+                            "messages": [{"role": "user", "content": "Hi"}],
+                            "max_tokens": 5
+                        }
+                        resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                        latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
+                        if resp.status_code == 200:
+                            groq_model["status"] = "Live"
+                            groq_model["latency_ms"] = latency
+                            groq_model["last_active"] = "Active now"
+                            
+                            # Dynamic rate limits parsing from Groq response headers
+                            rpm_header = resp.headers.get("x-ratelimit-remaining-requests")
+                            tpm_header = resp.headers.get("x-ratelimit-remaining-tokens")
+                            if rpm_header: groq_model["rpm_remaining"] = int(rpm_header)
+                            if tpm_header: groq_model["tpm_remaining"] = int(tpm_header)
+                            
+                            used_sim = int((1 - (reset_seconds / 86400)) * cfg["daily_limit"] * 0.12)
+                            groq_model["used_today"] = used_sim
+                            groq_model["remaining"] = cfg["daily_limit"] - used_sim
+                        elif resp.status_code == 429:
+                            groq_model["status"] = "Rate Limited"
+                            is_daily = False
+                            try:
+                                err_msg = resp.text.lower()
+                                if "day" in err_msg or "daily" in err_msg or "rpd" in err_msg:
+                                    is_daily = True
+                            except Exception:
+                                pass
+                            groq_model["is_daily_exhausted"] = is_daily
+                        else:
+                            groq_model["status"] = f"Error {resp.status_code}"
+                except Exception:
+                    groq_model["status"] = "Connection Failed"
                 
-            models.append(groq_model)
+                # Align limits perfectly for Rate Limited / Connection Failed nodes
+                if groq_model["status"] == "Rate Limited":
+                    if groq_model.get("is_daily_exhausted"):
+                        groq_model["used_today"] = cfg["daily_limit"]
+                        groq_model["remaining"] = 0
+                    else:
+                        used_sim = int((1 - (reset_seconds / 86400)) * cfg["daily_limit"] * 0.12)
+                        groq_model["used_today"] = used_sim
+                        groq_model["remaining"] = cfg["daily_limit"] - used_sim
+                    groq_model["rpm_remaining"] = 0
+                    groq_model["tpm_remaining"] = 0
+                elif groq_model["status"] in ("Connection Failed", "Disabled") or "Error" in groq_model["status"]:
+                    groq_model["used_today"] = 0
+                    groq_model["remaining"] = 0
+                    groq_model["rpm_remaining"] = 0
+                    groq_model["tpm_remaining"] = 0
+                    
+                models.append(groq_model)
 
         # 3. Mistral Key Check (Direct)
         if self.mistral_key:
