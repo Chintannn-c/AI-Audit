@@ -73,8 +73,8 @@ class AuditConfig:
     fuzzy_match_threshold: float = 85.0   # Score out of 100 for rapidfuzz / difflib
 
     # Vendor repeat cap per selection pass (TOD and TOC are counted independently)
-    vendor_cap_primary: int = 2    # Max appearances in the first-pass (unique-vendor) loops
-    vendor_cap_fallback: int = 3   # Max appearances allowed in the relaxed-fallback loops
+    vendor_cap_primary: int = 1    # Max appearances: set to 1 for absolute, strict non-repetition
+    vendor_cap_fallback: int = 1   # Set to 1 to match strict primary cap limits
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -538,19 +538,16 @@ class AuditReportGenerator:
                 toc_sel = int(toc_counts.get(v, 0))
                 tot_sel = tod_sel + toc_sel
                 
-                if tot_sel >= 2:
-                    if tot_sel == 2:
-                        status = "CAPPED: Hit primary repetition limit (2)"
-                    elif tot_sel == 3:
-                        status = "CAPPED: Hit relaxed fallback repetition limit (3)"
-                    else:
-                        status = f"Selected: Cap relaxed to satisfy target size ({tot_sel})"
-                elif tot_sel > 0 and tot_sel == avail:
-                    status = "EXHAUSTED: All vendor transactions selected"
-                elif tot_sel > 0:
-                    status = "Selected (Partial coverage)"
+                if tot_sel >= 1:
+                     if tot_sel == 1:
+                         if avail == 1:
+                             status = "EXHAUSTED: All vendor transactions selected"
+                         else:
+                             status = "CAPPED: Hit absolute repetition limit (1)"
+                     else:
+                         status = f"Selected: {tot_sel} times"
                 else:
-                    status = "Unselected: Lower risk/value ranking"
+                     status = "Unselected: Lower risk/value ranking"
                     
                 vendor_data.append({
                     'name': v,

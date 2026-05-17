@@ -52,12 +52,12 @@ def test_sampling_logic():
     print(f"Selected Months: {sorted(list(selected_months))}")
     assert len(selected_months) == 12 # All 12 months should be covered
 
-    print("\n--- Testing Value-Based Sampling Fixed (TOD+TOC, 30 samples, 70/30 split) ---")
-    # 30 samples -> 21 TOD, 9 TOC
-    tod_val, toc_val = analyzer.generate_samples(target_count=30, sampling_basis='value', audit_type='large', tod_pct=70)
+    print("\n--- Testing Value-Based Sampling Fixed (TOD+TOC, 20 samples, 70/30 split) ---")
+    # 20 samples -> 14 TOD, 6 TOC
+    tod_val, toc_val = analyzer.generate_samples(target_count=20, sampling_basis='value', audit_type='large', tod_pct=70)
     print(f"Value TOD Count: {len(tod_val)}, Value TOC Count: {len(toc_val)}")
-    assert len(tod_val) == 21
-    assert len(toc_val) == 9
+    assert len(tod_val) == 14
+    assert len(toc_val) == 6
     
     # 1. Check Row Uniqueness across TOD and TOC
     row_intersection_val = set(tod_val.index).intersection(set(toc_val.index))
@@ -75,14 +75,14 @@ def test_sampling_logic():
     assert len(set(selected_indices)) == len(selected_indices), "Duplicate transactions found in sample indices!"
     print("Value Unique Selection: Verified (no duplicate indices)")
 
-    # 4. Check Vendor Cap (Cap of 2 is strictly respected since 30 samples < 40 max unique capacity)
+    # 4. Check Vendor Cap (Cap of 1 is strictly respected)
     from collections import Counter
     all_selected_vendors = all_selected_val['Vendor'].dropna().str.strip().str.lower().tolist()
     vendor_counts = Counter(all_selected_vendors)
     print(f"Selected Vendor Frequencies: {dict(vendor_counts.most_common(5))}")
     for vendor, count in vendor_counts.items():
-        assert count <= 2, f"Vendor '{vendor}' appeared {count} times, which exceeds the cap of 2!"
-    print("Value Vendor Cap (cap <= 2): Verified successfully")
+        assert count <= 1, f"Vendor '{vendor}' appeared {count} times, which exceeds the cap of 1!"
+    print("Value Vendor Cap (cap <= 1): Verified successfully")
     
     print("\n[SUCCESS] All Sampling Logic Tests Passed!")
 
