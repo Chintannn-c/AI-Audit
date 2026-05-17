@@ -52,11 +52,10 @@ class AuditAIEngine:
 
     def __init__(self):
         self.gemini_keys = [
-            os.getenv("GEMINI_API_KEY"),
-            os.getenv("GEMINI_API_KEY_2"),
-            os.getenv("GEMINI_API_KEY_3")
+            os.getenv("GEMINI_API_KEY") or "",
+            os.getenv("GEMINI_API_KEY_2") or "",
+            os.getenv("GEMINI_API_KEY_3") or ""
         ]
-        self.gemini_keys = [k for k in self.gemini_keys if k]
         self.groq_key = os.getenv("GROQ_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
         self.mistral_key = os.getenv("MISTRAL_API_KEY")
@@ -142,7 +141,7 @@ class AuditAIEngine:
             return None
 
     async def _try_gemini(self, prompt, file_bytes=None, mime_type=None, target_model="gemini-2.0-flash"):
-        if not self.gemini_keys:
+        if not any(self.gemini_keys):
             print("[AI] No Gemini API keys configured.")
             return None
 
@@ -154,6 +153,9 @@ class AuditAIEngine:
             if idx >= len(self.gemini_keys):
                 continue
             key = self.gemini_keys[idx]
+            if not key:
+                print(f"[AI] Key #{idx + 1} is empty/not configured. Skipping...")
+                continue
             try:
                 print(f"[AI] Trying {target_model} with Key #{idx + 1}...")
                 client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha'})
@@ -433,7 +435,7 @@ class AuditAIEngine:
 
         # 1. Gemini Keys Check (Direct)
         for idx, key in enumerate(self.gemini_keys):
-            masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "Invalid Key"
+            masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "Not Configured"
             model_info = {
                 "id": "gemma_node_3" if idx == 2 else f"gemini_node_{idx+1}",
                 "model": "gemma-4-31b-it" if idx == 2 else "gemini-2.0-flash",
@@ -443,13 +445,17 @@ class AuditAIEngine:
                 "priority": idx + 1,
                 "daily_limit": 1500,
                 "used_today": 0,
-                "remaining": 1500,
-                "rpm_remaining": 15,
-                "tpm_remaining": 1000000,
+                "remaining": 0 if not key else 1500,
+                "rpm_remaining": 0 if not key else 15,
+                "tpm_remaining": 0 if not key else 1000000,
                 "reset_seconds": reset_seconds,
                 "latency_ms": None,
                 "last_active": "Unavailable"
             }
+            if not key:
+                models.append(model_info)
+                continue
+                
             start_time = datetime.datetime.now()
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
