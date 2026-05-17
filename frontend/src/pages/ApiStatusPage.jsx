@@ -39,6 +39,7 @@ const getStatusConfig = (statusStr) => {
 // Memoized individual model row component for premium performance
 const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
   const [expanded, setExpanded] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const hasDiagnosticWarning = model.status !== 'Live'
   
   // Real limit percentages
@@ -71,13 +72,19 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
 
   return (
     <div 
-      className="model-infra-row"
+      className={`model-infra-row ${hasDiagnosticWarning ? 'clickable-row' : ''}`}
+      onClick={() => hasDiagnosticWarning && setExpanded(!expanded)}
+      onMouseEnter={() => hasDiagnosticWarning && setHovered(true)}
+      onMouseLeave={() => hasDiagnosticWarning && setHovered(false)}
       style={{
         borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
         padding: isMobile ? '16px 8px' : '20px 24px',
-        transition: 'background 0.2s ease',
-        background: 'rgba(255, 255, 255, 0.01)',
-        position: 'relative'
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: expanded 
+          ? 'rgba(255, 255, 255, 0.03)' 
+          : (hovered ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.01)'),
+        position: 'relative',
+        cursor: hasDiagnosticWarning ? 'pointer' : 'default'
       }}
     >
       <div 
@@ -194,25 +201,22 @@ const ModelRow = memo(({ model, onCopy, copiedId, isMobile }) => {
               </span>
             </div>
 
-            {/* Expandable diagnostic info if error exists */}
+            {/* Expandable diagnostic info indicator */}
             {hasDiagnosticWarning && (
-              <button 
-                onClick={() => setExpanded(!expanded)}
+              <div 
                 style={{
                   background: 'rgba(255, 255, 255, 0.03)',
                   border: '1px solid rgba(255, 255, 255, 0.06)',
                   borderRadius: 6,
                   padding: 4,
-                  color: '#94a3b8',
-                  cursor: 'pointer',
+                  color: hovered ? '#f8fafc' : '#94a3b8',
                   display: 'flex',
                   alignItems: 'center',
-                  transition: 'all 0.2s ease',
-                  outline: 'none'
+                  transition: 'all 0.2s ease'
                 }}
               >
                 {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
+              </div>
             )}
           </div>
 
