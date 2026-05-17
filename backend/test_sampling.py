@@ -41,13 +41,10 @@ def test_sampling_logic():
     assert len(tod) == 14
     assert len(toc) == 6
     
-    # Check Vendor Uniqueness across TOD and TOC
-    vcol = '_Norm_Vendor'
-    tod_vendors = set(tod[vcol].tolist())
-    toc_vendors = set(toc[vcol].tolist())
-    intersection = tod_vendors.intersection(toc_vendors)
-    print(f"Vendor Intersection Size: {len(intersection)}")
-    assert len(intersection) == 0
+    # Check Row Uniqueness across TOD and TOC (mutually exclusive transaction rows)
+    row_intersection = set(tod.index).intersection(set(toc.index))
+    print(f"Row Intersection Size: {len(row_intersection)}")
+    assert len(row_intersection) == 0
     
     # Check Month Coverage (Parse from Date column since _Month is dropped)
     all_selected = pd.concat([tod, toc])

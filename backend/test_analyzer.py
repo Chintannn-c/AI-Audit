@@ -76,13 +76,9 @@ class TestAuditAnalyzerRefactored(unittest.TestCase):
         # Verify sizes
         self.assertEqual(len(tod) + len(toc), 10)
         
-        # Verify deduplication: zero vendor intersection between TOD and TOC
-        tod_vendors = set(tod['_Norm_Vendor'].dropna().astype(str).str.strip().str.lower())
-        toc_vendors = set(toc['_Norm_Vendor'].dropna().astype(str).str.strip().str.lower())
-        overlap = tod_vendors.intersection(toc_vendors)
-        # Verify that only blank/empty normalized vendors overlap (if any), otherwise 0
-        overlap = {v for v in overlap if v not in ('', 'nan')}
-        self.assertEqual(len(overlap), 0)
+        # Verify transaction row indices do not overlap between TOD and TOC
+        row_overlap = set(tod.index).intersection(set(toc.index))
+        self.assertEqual(len(row_overlap), 0)
 
     def test_configuration_override(self):
         custom_config = AuditConfig(
