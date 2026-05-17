@@ -1749,7 +1749,7 @@ class AuditAnalyzer:
                     f"selected because the vendor repeat cap "
                     f"(primary={self.config.vendor_cap_primary}, "
                     f"fallback={self.config.vendor_cap_fallback}) was exhausted and "
-                    f"no further unique or repeat-eligible transactions remain in the ledger population."
+                    f"no further unique or repeat-eligible transactions remain in the ledger."
                 ),
             }
         else:
@@ -1846,3 +1846,5 @@ class AuditAnalyzer:
             f'amount_col={self.amount_col!r}, '
             f'date_col={self.date_col!r})'
         )
+
+        

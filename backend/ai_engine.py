@@ -167,7 +167,7 @@ class AuditAIEngine:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 payload = {
-                    "model": "llama-3.3-70b-specdec",
+                    "model": "llama-3.3-70b-versatile",
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"}
                 }
@@ -419,7 +419,7 @@ class AuditAIEngine:
             masked_key = f"{self.groq_key[:8]}..." if len(self.groq_key) > 8 else "Key"
             groq_model = {
                 "id": "groq_speed",
-                "model": "llama-3.3-70b-specdec",
+                "model": "llama-3.3-70b-versatile",
                 "provider": "Groq",
                 "api_key_name": "Groq Production Key",
                 "status": "Disabled",
@@ -438,7 +438,7 @@ class AuditAIEngine:
                 async with httpx.AsyncClient(timeout=8.0) as client:
                     headers = {"Authorization": f"Bearer {self.groq_key}", "Content-Type": "application/json"}
                     payload = {
-                        "model": "llama-3.3-70b-specdec",
+                        "model": "llama-3.3-70b-versatile",
                         "messages": [{"role": "user", "content": "Hi"}],
                         "max_tokens": 5
                     }
