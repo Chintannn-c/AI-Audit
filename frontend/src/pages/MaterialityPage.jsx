@@ -8,27 +8,27 @@ const BENCHMARK_CONFIGS = {
     label: 'Total Turnover (₹)',
     placeholder: 'e.g. 500',
     rommRanges: {
-      low: [1.5, 2.0],
-      medium: [1.0, 1.2],
-      high: [0.5, 0.8]
+      low: [8, 9, 10],
+      medium: [7, 8],
+      high: [5, 6, 7]
     }
   },
   NPBT: {
     label: 'Net Profit Before Tax (₹)',
     placeholder: 'e.g. 50',
     rommRanges: {
-      low: [8.2, 8.5, 9.0, 9.5, 10.0],
-      medium: [7.0, 7.2, 7.5, 7.8, 8.0],
-      high: [5.0, 5.5, 6.0, 6.5]
+      low: [8, 9, 10],
+      medium: [7, 8],
+      high: [5, 6, 7]
     }
   },
   NPAT: {
     label: 'Net Profit After Tax (₹)',
     placeholder: 'e.g. 40',
     rommRanges: {
-      low: [8.2, 8.5, 9.0, 9.5, 10.0],
-      medium: [7.0, 7.2, 7.5, 7.8, 8.0],
-      high: [5.0, 5.5, 6.0, 6.5]
+      low: [8, 9, 10],
+      medium: [7, 8],
+      high: [5, 6, 7]
     }
   }
 }
