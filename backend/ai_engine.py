@@ -379,9 +379,9 @@ class AuditAIEngine:
                 "api_key_name": f"Gemini Production Key #{idx+1}",
                 "status": "Disabled",
                 "priority": idx + 1,
-                "daily_limit": 50000,
+                "daily_limit": 1500,
                 "used_today": 0,
-                "remaining": 50000,
+                "remaining": 1500,
                 "rpm_remaining": 15,
                 "tpm_remaining": 1000000,
                 "reset_seconds": reset_seconds,
@@ -405,9 +405,9 @@ class AuditAIEngine:
                         model_info["latency_ms"] = latency
                         model_info["last_active"] = "Active now"
                         # Add local usage estimation based on elapsed time of day
-                        used_sim = int((1 - (reset_seconds / 86400)) * 50000 * 0.18)
+                        used_sim = int((1 - (reset_seconds / 86400)) * 1500 * 0.18)
                         model_info["used_today"] = used_sim
-                        model_info["remaining"] = 50000 - used_sim
+                        model_info["remaining"] = 1500 - used_sim
                     elif resp.status_code == 429:
                         model_info["status"] = "Rate Limited"
                         model_info["latency_ms"] = latency
@@ -419,6 +419,14 @@ class AuditAIEngine:
                     model_info["status"] = "Rate Limited"
                 else:
                     model_info["status"] = "Error"
+            
+            # Align limits perfectly for Rate Limited / Quota Exceeded nodes
+            if model_info["status"] in ("Rate Limited", "Error"):
+                model_info["used_today"] = 1500
+                model_info["remaining"] = 0
+                model_info["rpm_remaining"] = 0
+                model_info["tpm_remaining"] = 0
+            
             models.append(model_info)
 
         # 2. Groq Key Check (Direct)
@@ -469,6 +477,14 @@ class AuditAIEngine:
                         groq_model["status"] = f"Error {resp.status_code}"
             except Exception:
                 groq_model["status"] = "Connection Failed"
+            
+            # Align limits perfectly for Rate Limited / Connection Failed nodes
+            if groq_model["status"] in ("Rate Limited", "Connection Failed") or "Error" in groq_model["status"]:
+                groq_model["used_today"] = 14400
+                groq_model["remaining"] = 0
+                groq_model["rpm_remaining"] = 0
+                groq_model["tpm_remaining"] = 0
+                
             models.append(groq_model)
 
         # 3. OpenRouter Key Check (Dynamic telemetry of all profile models)
