@@ -390,22 +390,29 @@ class AuditAIEngine:
             }
             start_time = datetime.datetime.now()
             try:
-                client = genai.Client(api_key=key, http_options={'api_version': 'v1alpha', 'timeout': 5.0})
-                resp = await client.aio.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents="Hi"
-                )
-                latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
-                if resp and resp.text:
-                    model_info["status"] = "Live"
-                    model_info["latency_ms"] = latency
-                    model_info["last_active"] = "Active now"
-                    # Add local usage estimation based on elapsed time of day
-                    used_sim = int((1 - (reset_seconds / 86400)) * 50000 * 0.18)
-                    model_info["used_today"] = used_sim
-                    model_info["remaining"] = 50000 - used_sim
-                else:
-                    model_info["status"] = "Error"
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
+                    payload = {
+                        "contents": [{
+                            "parts": [{"text": "Hi"}]
+                        }]
+                    }
+                    resp = await client.post(url, json=payload)
+                    latency = int((datetime.datetime.now() - start_time).total_seconds() * 1000)
+                    
+                    if resp.status_code == 200:
+                        model_info["status"] = "Live"
+                        model_info["latency_ms"] = latency
+                        model_info["last_active"] = "Active now"
+                        # Add local usage estimation based on elapsed time of day
+                        used_sim = int((1 - (reset_seconds / 86400)) * 50000 * 0.18)
+                        model_info["used_today"] = used_sim
+                        model_info["remaining"] = 50000 - used_sim
+                    elif resp.status_code == 429:
+                        model_info["status"] = "Rate Limited"
+                        model_info["latency_ms"] = latency
+                    else:
+                        model_info["status"] = "Error"
             except Exception as e:
                 err_str = f"{type(e).__name__}: {str(e)}".lower()
                 if "429" in err_str or "quota" in err_str or "limit" in err_str or "exhausted" in err_str:
