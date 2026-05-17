@@ -241,6 +241,94 @@
     background-color: var(--bg-card) !important;
 }
 
+/* ─── Light Mode Overrides for Tab Navigation, Toggle Groups, and Input Contrast ─── */
+[data-theme="arctic"] .tab-container,
+[data-theme="frostglass"] .tab-container,
+[data-theme="softsand"] .tab-container {
+    background: var(--glass) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="arctic"] .tab-btn,
+[data-theme="frostglass"] .tab-btn,
+[data-theme="softsand"] .tab-btn {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="arctic"] .tab-btn:hover,
+[data-theme="frostglass"] .tab-btn:hover,
+[data-theme="softsand"] .tab-btn:hover {
+    color: var(--text-primary) !important;
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="arctic"] .tab-btn.active,
+[data-theme="frostglass"] .tab-btn.active,
+[data-theme="softsand"] .tab-btn.active {
+    background: var(--accent-primary) !important;
+    color: #ffffff !important;
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 4px 15px var(--accent-glow) !important;
+}
+
+[data-theme="arctic"] .tab-btn.active i,
+[data-theme="frostglass"] .tab-btn.active i,
+[data-theme="softsand"] .tab-btn.active i {
+    color: #ffffff !important;
+}
+
+[data-theme="arctic"] .toggle-group,
+[data-theme="frostglass"] .toggle-group,
+[data-theme="softsand"] .toggle-group {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="arctic"] .toggle-option,
+[data-theme="frostglass"] .toggle-option,
+[data-theme="softsand"] .toggle-option {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="arctic"] .toggle-option:hover,
+[data-theme="frostglass"] .toggle-option:hover,
+[data-theme="softsand"] .toggle-option:hover {
+    color: var(--text-primary) !important;
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="arctic"] .toggle-option.active,
+[data-theme="frostglass"] .toggle-option.active,
+[data-theme="softsand"] .toggle-option.active {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="arctic"] .glass-input,
+[data-theme="frostglass"] .glass-input,
+[data-theme="softsand"] .glass-input {
+    background: rgba(0, 0, 0, 0.02) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="arctic"] .glass-input:focus,
+[data-theme="frostglass"] .glass-input:focus,
+[data-theme="softsand"] .glass-input:focus {
+    background: #ffffff !important;
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 3px var(--accent-glow) !important;
+}
+
+/* Ensure placeholder text is clearly visible in light modes */
+[data-theme="arctic"] .glass-input::placeholder,
+[data-theme="frostglass"] .glass-input::placeholder,
+[data-theme="softsand"] .glass-input::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.7 !important;
+}
+
 [data-theme="arctic"] .nav-link:hover,
 [data-theme="frostglass"] .nav-link:hover,
 [data-theme="softsand"] .nav-link:hover {
@@ -249,18 +337,6 @@
 [data-theme="arctic"] .nav-link.active,
 [data-theme="frostglass"] .nav-link.active,
 [data-theme="softsand"] .nav-link.active {
-    background: rgba(99, 102, 241, 0.08);
-    color: var(--accent-primary);
-}
-
-[data-theme="arctic"] .tab-btn:hover,
-[data-theme="frostglass"] .tab-btn:hover,
-[data-theme="softsand"] .tab-btn:hover {
-    background: rgba(0, 0, 0, 0.04);
-}
-[data-theme="arctic"] .tab-btn.active,
-[data-theme="frostglass"] .tab-btn.active,
-[data-theme="softsand"] .tab-btn.active {
     background: rgba(99, 102, 241, 0.08);
     color: var(--accent-primary);
 }
