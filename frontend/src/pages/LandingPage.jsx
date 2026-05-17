@@ -8,8 +8,8 @@ export default function LandingPage({ navigateTo }) {
         <p className="hero-subtitle" style={{ fontSize: 16, maxWidth: 650, margin: '0 auto 28px auto', opacity: 0.8 }}>
           Intelligent sample selection for Test of Details & Test of Controls. Dual-mode sampling, 10 risk indicators, zero-overlap guarantee.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, width: '100%' }}>
-          <div className="glass-card" style={{ textAlign: 'left', borderLeft: '4px solid var(--accent-primary)', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <div className="glass-card" style={{ textAlign: 'left', borderLeft: '4px solid var(--accent-primary)', padding: 24, maxWidth: 460, width: '100%' }}>
             <h3 style={{ marginBottom: 8, fontSize: 17 }}>Materiality & Planning</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
               Calculate statutory materiality thresholds and perform audit classification.
