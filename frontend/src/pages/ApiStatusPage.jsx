@@ -290,6 +290,11 @@ export default function ApiStatusPage() {
   const models = getModelConfigurations();
   const liveCount = models.filter(m => m.status === 'Live').length;
 
+  const openrouterConf = status?.openrouter?.configured;
+  const openrouterHealthy = status?.openrouter?.status?.includes('Healthy');
+  const g3 = status?.gemini_keys?.[2];
+  const isG3Live = g3?.status === 'Healthy & Active';
+
   return (
     <section className="content-section" style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
       
