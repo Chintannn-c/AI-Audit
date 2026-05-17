@@ -3,27 +3,61 @@ import { useSession } from '../context/SessionContext'
 import { useAudit } from '../context/AuditContext'
 import { Calculator } from 'lucide-react'
 
-const ROMM_RANGES = {
-  low: [8, 9, 10],
-  medium: [5, 6, 7],
-  high: [2, 3, 4]
+const BENCHMARK_CONFIGS = {
+  TURNOVER: {
+    label: 'Total Turnover (₹)',
+    placeholder: 'e.g. 500',
+    rommRanges: {
+      low: [1.5, 2.0],
+      medium: [1.0, 1.2],
+      high: [0.5, 0.8]
+    }
+  },
+  NPBT: {
+    label: 'Net Profit Before Tax (₹)',
+    placeholder: 'e.g. 50',
+    rommRanges: {
+      low: [8, 9, 10],
+      medium: [5, 6, 7],
+      high: [2, 3, 4]
+    }
+  },
+  NPAT: {
+    label: 'Net Profit After Tax (₹)',
+    placeholder: 'e.g. 40',
+    rommRanges: {
+      low: [8, 9, 10],
+      medium: [5, 6, 7],
+      high: [2, 3, 4]
+    }
+  }
 }
 
 export default function MaterialityPage({ navigateTo }) {
   const { secureFetch, sessionId } = useSession()
   const { setMateriality, unlockStage, selectedExactPct, setSelectedExactPct } = useAudit()
 
+  const [benchmark, setBenchmark] = useState('TURNOVER')
   const [turnover, setTurnover] = useState('')
   const [romm, setRomm] = useState('low')
   const [perfPct, setPerfPct] = useState(75)
   const [trivialPct, setTrivialPct] = useState(3)
-  const [exactPctOptions, setExactPctOptions] = useState(ROMM_RANGES.low)
+  const [exactPctOptions, setExactPctOptions] = useState(BENCHMARK_CONFIGS.TURNOVER.rommRanges.low)
   const [showResults, setShowResults] = useState(false)
   const [results, setResults] = useState({ overall: 0, performance: 0, trivial: 0 })
 
+  const selectBenchmark = (bId) => {
+    setBenchmark(bId)
+    const configs = BENCHMARK_CONFIGS[bId]
+    const opts = configs.rommRanges[romm]
+    setExactPctOptions(opts)
+    setSelectedExactPct(opts[0] / 100)
+  }
+
   const selectRisk = (risk) => {
     setRomm(risk)
-    const opts = ROMM_RANGES[risk]
+    const configs = BENCHMARK_CONFIGS[benchmark]
+    const opts = configs.rommRanges[risk]
     setExactPctOptions(opts)
     setSelectedExactPct(opts[0] / 100)
   }
@@ -31,7 +65,7 @@ export default function MaterialityPage({ navigateTo }) {
   const handleCalculate = async () => {
     const turnoverVal = parseFloat(turnover)
     if (isNaN(turnoverVal) || !selectedExactPct) {
-      alert('Please enter turnover and select an exact ROMM basis.')
+      alert('Please enter a benchmark value and select an exact ROMM basis.')
       return
     }
 
@@ -48,7 +82,7 @@ export default function MaterialityPage({ navigateTo }) {
     const fd = new FormData()
     fd.append('session_id', sessionId)
     fd.append('value', turnoverVal)
-    fd.append('benchmark', 'NPBT')
+    fd.append('benchmark', benchmark)
     fd.append('romm', romm)
     fd.append('perf_pct', perfPct)
     fd.append('trivial_pct', trivialPct)
@@ -75,11 +109,31 @@ export default function MaterialityPage({ navigateTo }) {
           </h3>
 
           <div className="form-group">
-            <label className="form-label">Total Turnover (₹)</label>
+            <label className="form-label">Materiality Benchmark</label>
+            <div className="toggle-group">
+              {[
+                { id: 'TURNOVER', label: 'Turnover' },
+                { id: 'NPBT', label: 'NPBT (Profit Before Tax)' },
+                { id: 'NPAT', label: 'NPAT (Profit After Tax)' }
+              ].map(b => (
+                <button
+                  key={b.id}
+                  type="button"
+                  className={`toggle-option ${benchmark === b.id ? 'active' : ''}`}
+                  onClick={() => selectBenchmark(b.id)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">{BENCHMARK_CONFIGS[benchmark].label}</label>
             <input
               type="number"
               className="glass-input"
-              placeholder="e.g. 500"
+              placeholder={BENCHMARK_CONFIGS[benchmark].placeholder}
               value={turnover}
               onChange={(e) => setTurnover(e.target.value)}
             />

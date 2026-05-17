@@ -21,7 +21,9 @@ class MaterialityCalculator:
             # Determine Overall Materiality % based on Benchmark and RoMM
             if self.benchmark == 'NPBT':
                 ranges = (5.0, 10.0)
-            elif self.benchmark == 'REVENUE':
+            elif self.benchmark == 'NPAT':
+                ranges = (5.0, 10.0)
+            elif self.benchmark in ['REVENUE', 'TURNOVER']:
                 ranges = (0.5, 1.0)
             elif self.benchmark == 'ASSETS':
                 ranges = (1.0, 2.0)
