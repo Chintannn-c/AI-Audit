@@ -598,7 +598,7 @@ async def get_ai_insights(category: str, stats: dict) -> dict:
 
 @app.post("/api/session/create")
 async def create_session(request: Request):
-    client_ip = request.client.host if request.client else ""
+    client_ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
     accept_lang = request.headers.get("Accept-Language", "")
     
