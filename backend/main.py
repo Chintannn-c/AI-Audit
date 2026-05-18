@@ -917,7 +917,8 @@ async def download_report(
             'basis': sampling_basis,
             'sample_pct': sample_pct,
             'tod_pct': tod_pct,
-            'amount_col': analyzer.amount_col or ''
+            'amount_col': analyzer.amount_col or '',
+            'audit_type': audit_type
         }
 
         # Fetch Vouching Results for this session

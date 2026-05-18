@@ -429,8 +429,22 @@ class AuditReportGenerator:
         ws.write(r, 1, '', sub_fmt)
         r += 1
         
-        rk = self.risk
-        is_large = 'large' in str(rk.get('audit_type', '')).lower()
+        rk = self.risk or {}
+        # Robustly determine if this is a large audit using all signals:
+        # 1. 'audit_type' in rk (from risk assessment endpoint)
+        # 2. 'audit_type' in sampling_config (passed from download/analyze request)
+        # 3. Any of the risk flags (turnover_250, ifc, governance, misstatements) are True in rk
+        is_large_rk = 'large' in str(rk.get('audit_type', '')).lower()
+        is_large_config = 'large' in str(self.sampling_config.get('audit_type', '')).lower()
+        is_large_flags = any([
+            rk.get('turnover_250') is True,
+            rk.get('ifc') is True,
+            rk.get('governance') is True,
+            rk.get('misstatements') is True
+        ])
+        
+        is_large = is_large_rk or is_large_config or is_large_flags
+        
         rk_items = [
             ('Public / PIE Entity?', 'Yes' if rk.get('turnover_250') else 'No'),
             ('IFC Applicable?', 'Yes' if rk.get('ifc') else 'No'),

@@ -28,7 +28,7 @@ class RiskAssessmentEngine:
         classification = "High" if risk_score >= 60 else ("Medium" if risk_score >= 30 else "Low")
         
         return {
-            "audit_type": "LARGE AUDIT" if is_large_audit else "NORMAL AUDIT",
+            "audit_type": "LARGE AUDIT" if is_large_audit else "SMALL AUDIT",
             "risk_score": risk_score,
             "classification": classification,
             "control_reliance": "Low" if risk_score > 50 else ("Medium" if risk_score > 30 else "High"),
