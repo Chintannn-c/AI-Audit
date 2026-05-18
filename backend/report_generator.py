@@ -508,7 +508,7 @@ class AuditReportGenerator:
         ws.write(6, 1, self.deficit_info.get("deficit", 0) if self.deficit_info else 0, wb.add_format({'bold': True, 'font_color': '#b91c1c', 'border': 1, 'align': 'right'}))
         
         ws.write(7, 0, "Hard Rule Restriction", lbl_fmt)
-        ws.write(7, 1, "Max 2 repetitions per vendor combined", text_cell)
+        ws.write(7, 1, "Strict unique non-repetition (max 1 selection per vendor combined)", text_cell)
         
         # Alert Box for Deficit Explanation
         ws.merge_range('A9:B12', self.deficit_info.get("explanation", "") if self.deficit_info else "", alert_box)
@@ -552,17 +552,11 @@ class AuditReportGenerator:
                 toc_sel = int(toc_counts.get(v, 0))
                 tot_sel = tod_sel + toc_sel
                 
-                if tot_sel >= 2:
-                    if tot_sel == 2:
-                        status = "CAPPED: Hit primary repetition limit (2)"
-                    elif tot_sel == 3:
-                        status = "CAPPED: Hit relaxed fallback repetition limit (3)"
+                if tot_sel >= 1:
+                    if avail > 1:
+                        status = "CAPPED: Hit strict unique vendor repeat limit (1)"
                     else:
-                        status = f"Selected: Cap relaxed to satisfy target size ({tot_sel})"
-                elif tot_sel > 0 and tot_sel == avail:
-                    status = "EXHAUSTED: All vendor transactions selected"
-                elif tot_sel > 0:
-                    status = "Selected (Partial coverage)"
+                        status = "EXHAUSTED: Only unique vendor transaction selected"
                 else:
                     status = "Unselected: Lower risk/value ranking"
                     
