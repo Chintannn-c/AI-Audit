@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 
 const SessionContext = createContext(null)
 
@@ -116,8 +116,12 @@ export function SessionProvider({ children }) {
     window.location.reload()
   }, [secureFetch])
 
+  const value = useMemo(() => ({
+    sessionId, secureFetch, clearSession
+  }), [sessionId, secureFetch, clearSession])
+
   return (
-    <SessionContext.Provider value={{ sessionId, secureFetch, clearSession }}>
+    <SessionContext.Provider value={value}>
       {children}
     </SessionContext.Provider>
   )

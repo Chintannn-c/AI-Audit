@@ -16,12 +16,17 @@ export default function SamplingPage({ setProcessing }) {
   const [showStep2, setShowStep2] = useState(false)
   const [targetCount, setTargetCount] = useState(100)
   const [todPct, setTodPct] = useState(70)
+  const [localTodPct, setLocalTodPct] = useState(70)
   const [showResults, setShowResults] = useState(false)
   const [results, setResults] = useState(null)
   const [chartData, setChartData] = useState(null)
   const [preview, setPreview] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
+
+  useEffect(() => {
+    setLocalTodPct(todPct)
+  }, [todPct])
 
   const todCount = Math.ceil(targetCount * todPct / 100)
   const tocCount = isLargeAudit ? targetCount - todCount : 0
@@ -189,8 +194,20 @@ export default function SamplingPage({ setProcessing }) {
               <div>
                 <label className="form-label">TOD / TOC Split Ratio</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <input type="range" className="range-slider" min={50} max={90} value={todPct} onChange={(e) => setTodPct(parseInt(e.target.value))} style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 700, color: 'var(--accent-primary)', minWidth: 140, textAlign: 'center' }}>{splitDisplay}</span>
+                  <input 
+                    type="range" 
+                    className="range-slider" 
+                    min={50} 
+                    max={90} 
+                    value={localTodPct} 
+                    onChange={(e) => setLocalTodPct(parseInt(e.target.value))}
+                    onMouseUp={() => setTodPct(localTodPct)}
+                    onTouchEnd={() => setTodPct(localTodPct)}
+                    style={{ flex: 1 }} 
+                  />
+                  <span style={{ fontWeight: 700, color: 'var(--accent-primary)', minWidth: 140, textAlign: 'center' }}>
+                    {isLargeAudit ? `${Math.ceil(targetCount * localTodPct / 100)} TOD / ${targetCount - Math.ceil(targetCount * localTodPct / 100)} TOC` : `${targetCount} TOD / 0 TOC`}
+                  </span>
                 </div>
               </div>
             )}
@@ -333,7 +350,7 @@ export default function SamplingPage({ setProcessing }) {
                 </p>
               </div>
               <div style={{ height: 140, width: '100%', position: 'relative' }}>
-                {chartData && <Bar data={chartData} options={chartOptions} />}
+                {chartData && <Bar key={selectedCategory} data={chartData} options={chartOptions} />}
               </div>
             </div>
 
@@ -479,7 +496,7 @@ function ForensicDashboard({ data }) {
         <div style={{ padding: 14, background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: '1px solid var(--glass-border)' }}>
           <h4 style={{ fontSize: 13, marginBottom: 10 }}>Monthly Transaction Trends</h4>
           <div style={{ height: 160, position: 'relative' }}>
-            {trendChartData && <Bar data={trendChartData} options={trendOptions} />}
+            {trendChartData && <Bar key={trendChartData.labels.join(',')} data={trendChartData} options={trendOptions} />}
           </div>
           {spikeMonths.length > 0 && (
             <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 11, color: '#ef4444' }}>

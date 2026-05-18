@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 const AuditContext = createContext(null)
 
@@ -23,19 +23,28 @@ export function AuditProvider({ children }) {
     setMaxUnlockedStage(prev => Math.max(prev, stage))
   }, [])
 
+  const value = useMemo(() => ({
+    maxUnlockedStage, unlockStage,
+    materiality, setMateriality,
+    riskClassification, setRiskClassification,
+    samplingResults, setSamplingResults,
+    uploadedFile, setUploadedFile,
+    selectedCategory, setSelectedCategory,
+    selectedBasis, setSelectedBasis,
+    selectedExactPct, setSelectedExactPct,
+    aiInsights, setAiInsights,
+    dashboard, setDashboard
+  }), [
+    maxUnlockedStage, unlockStage,
+    materiality, riskClassification,
+    samplingResults, uploadedFile,
+    selectedCategory, selectedBasis,
+    selectedExactPct, aiInsights,
+    dashboard
+  ])
+
   return (
-    <AuditContext.Provider value={{
-      maxUnlockedStage, unlockStage,
-      materiality, setMateriality,
-      riskClassification, setRiskClassification,
-      samplingResults, setSamplingResults,
-      uploadedFile, setUploadedFile,
-      selectedCategory, setSelectedCategory,
-      selectedBasis, setSelectedBasis,
-      selectedExactPct, setSelectedExactPct,
-      aiInsights, setAiInsights,
-      dashboard, setDashboard
-    }}>
+    <AuditContext.Provider value={value}>
       {children}
     </AuditContext.Provider>
   )

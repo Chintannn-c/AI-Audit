@@ -166,7 +166,7 @@ body {
     min-height: 100vh;
     flex: 1;
     display: flex; flex-direction: column;
-    transition: var(--transition);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .main-wrapper.expanded {
@@ -318,10 +318,16 @@ select.glass-input { appearance: none; cursor: pointer; }
 .table-container { width: 100%; overflow-x: auto; border-radius: 16px; }
 .premium-table { width: 100%; border-collapse: collapse; }
 .premium-table th {
-    background: rgba(255,255,255,0.02); padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03); padding: 14px 16px;
     text-align: left; font-size: 11px; text-transform: uppercase;
     color: var(--text-secondary); border-bottom: 1px solid var(--glass-border);
     white-space: nowrap;
+}
+/* High-contrast table headers for light modes */
+[data-theme="arctic"] .premium-table th,
+[data-theme="frostglass"] .premium-table th,
+[data-theme="softsand"] .premium-table th {
+    background: rgba(0, 0, 0, 0.03) !important;
 }
 .premium-table td {
     padding: 12px 16px; font-size: 13px;
@@ -554,8 +560,8 @@ select.glass-input {
 }
 
 select.glass-input option {
-    background-color: #1e1b4b;
-    color: white;
+    background-color: var(--bg-navy);
+    color: var(--text-primary);
 }
 
 /* ─── Upload Zone ─── */
