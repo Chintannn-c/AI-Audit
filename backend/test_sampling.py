@@ -53,11 +53,12 @@ def test_sampling_logic():
     assert len(selected_months) == 12 # All 12 months should be covered
 
     print("\n--- Testing Value-Based Sampling Fixed (TOD+TOC, 30 samples, 70/30 split) ---")
-    # 30 samples -> 21 TOD, 9 TOC
+    # Under strict deduplication, 30 requested samples is capped at 20 (the max unique vendors).
+    # 20 samples -> 14 TOD, 6 TOC
     tod_val, toc_val = analyzer.generate_samples(target_count=30, sampling_basis='value', audit_type='large', tod_pct=70)
     print(f"Value TOD Count: {len(tod_val)}, Value TOC Count: {len(toc_val)}")
-    assert len(tod_val) == 21
-    assert len(toc_val) == 9
+    assert len(tod_val) == 14
+    assert len(toc_val) == 6
     
     # 1. Check Row Uniqueness across TOD and TOC
     row_intersection_val = set(tod_val.index).intersection(set(toc_val.index))
@@ -81,10 +82,57 @@ def test_sampling_logic():
     vendor_counts = Counter(all_selected_vendors)
     print(f"Selected Vendor Frequencies: {dict(vendor_counts.most_common(5))}")
     for vendor, count in vendor_counts.items():
-        assert count <= 2, f"Vendor '{vendor}' appeared {count} times, which exceeds the cap of 2!"
-    print("Value Vendor Cap (cap <= 2): Verified successfully")
+        assert count <= 1, f"Vendor '{vendor}' appeared {count} times, which exceeds the strict cap of 1!"
+    print("Value Vendor Cap (cap <= 1): Verified successfully")
     
     print("\n[SUCCESS] All Sampling Logic Tests Passed!")
 
+def test_strict_non_repetition():
+    print("\n--- Testing Strict Non-Repetition (Rule 1-10 Validation) ---")
+    # Create mock ledger with duplicates based on Vendor, Invoice, and Combos
+    data = [
+        # Normal rows
+        {"Date": "01/01/2023", "Vendor": "Vendor A", "Amount": 1000, "Invoice": "INV-001", "Txn ID": "TXN-101"},
+        {"Date": "02/01/2023", "Vendor": "Vendor B", "Amount": 2000, "Invoice": "INV-002", "Txn ID": "TXN-102"},
+        {"Date": "03/01/2023", "Vendor": "Vendor C", "Amount": 3000, "Invoice": "INV-003", "Txn ID": "TXN-103"},
+        # Duplicate Vendor
+        {"Date": "04/01/2023", "Vendor": "Vendor A", "Amount": 4000, "Invoice": "INV-004", "Txn ID": "TXN-104"},
+        # Duplicate Invoice
+        {"Date": "05/01/2023", "Vendor": "Vendor D", "Amount": 5000, "Invoice": "INV-001", "Txn ID": "TXN-105"},
+        # Duplicate Txn ID
+        {"Date": "06/01/2023", "Vendor": "Vendor E", "Amount": 6000, "Invoice": "INV-006", "Txn ID": "TXN-102"},
+        # Duplicate Combo (Date + Amount + Vendor)
+        {"Date": "01/01/2023", "Vendor": "Vendor A", "Amount": 1000, "Invoice": "INV-007", "Txn ID": "TXN-107"},
+    ]
+    df = pd.DataFrame(data)
+    analyzer = AuditAnalyzer(df, "Sales")
+    
+    # Request 10 samples (which exceeds available unique count after deduplication)
+    tod, toc = analyzer.generate_samples(target_count=10, audit_type='large')
+    
+    # Verify that:
+    # 1. Every selected sample has a unique vendor
+    # 2. Every selected sample has a unique invoice number
+    # 3. Every selected sample has a unique transaction ID
+    all_selected = pd.concat([tod, toc])
+    vendors = all_selected['_Norm_Vendor'].tolist()
+    assert len(vendors) == len(set(vendors)), f"Duplicate vendors in final samples: {vendors}"
+    
+    invoices = all_selected['Invoice'].tolist()
+    assert len(invoices) == len(set(invoices)), f"Duplicate invoices in final samples: {invoices}"
+    
+    txn_ids = all_selected['Txn ID'].tolist()
+    assert len(txn_ids) == len(set(txn_ids)), f"Duplicate transaction IDs in final samples: {txn_ids}"
+    
+    # Verify duplicates_removed count is recorded
+    assert analyzer.duplicates_removed > 0
+    print(f"Duplicates removed count: {analyzer.duplicates_removed}")
+    
+    # Verify deficit_info correctly formats custom explanation (Rule 10)
+    assert analyzer.sampling_deficit is not None
+    assert "Total duplicates removed:" in analyzer.sampling_deficit["explanation"]
+    print("Strict Non-Repetition Verification Passed successfully!")
+
 if __name__ == "__main__":
     test_sampling_logic()
+    test_strict_non_repetition()

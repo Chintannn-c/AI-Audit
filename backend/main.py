@@ -810,6 +810,21 @@ async def analyze_ledger(
         # AI insights (non-blocking)
         ai_insights = await get_ai_insights(category, stats)
 
+        # Inject strict non-repetition warning if duplicates were removed (Rule 8)
+        dups_count = getattr(analyzer, "duplicates_removed", 0)
+        if dups_count > 0:
+            if isinstance(ai_insights, dict):
+                focus_val = ai_insights.get("focus", "AI Analysis")
+                summary_val = ai_insights.get("summary", "")
+                rule8_msg = "Duplicate samples were automatically removed to avoid repetition."
+                if rule8_msg not in summary_val:
+                    if summary_val:
+                        summary_val = f"{summary_val.strip()} {rule8_msg}"
+                    else:
+                        summary_val = rule8_msg
+                ai_insights["focus"] = focus_val
+                ai_insights["summary"] = summary_val
+
         # Dashboard JSON
         dashboard = analyzer.get_dashboard_json()
 

@@ -139,12 +139,24 @@ class DataCleaner:
         # 5. Vendor / Party column
         vendor_col = self._detect_vendor(df, narration_col)
 
+        # 6. Transaction ID / Reference column — exclude amount, date, and vendor
+        txn_id_col = next(
+            (c for c in df.columns
+             if c not in (date_col, amount_col, vendor_col)
+             and 'date' not in str(c).lower()
+             and 'amount' not in str(c).lower()
+             and any(k in str(c).lower()
+                     for k in ['txn id', 'transaction id', 'txn_id', 'id', 'txnno', 'transaction no', 'transaction_no', 'reference', 'ref'])),
+            None,
+        )
+
         return {
             'amount_col': amount_col,
             'date_col': date_col,
             'narration_col': narration_col,
             'invoice_col': invoice_col,
             'vendor_col': vendor_col,
+            'txn_id_col': txn_id_col,
         }
 
     def _detect_amount(self, df: pd.DataFrame,
@@ -1502,6 +1514,7 @@ class AuditAnalyzer:
         self.narration_col = detected['narration_col']
         self.invoice_col   = detected['invoice_col']
         self.vendor_col    = detected['vendor_col']
+        self.txn_id_col    = detected.get('txn_id_col')
 
         # Step 5: Post-detection validation (amount_col now known)
         self._validate_post_detection()
@@ -1612,7 +1625,81 @@ class AuditAnalyzer:
         scored = self.score_risks()
         total_rows = len(scored)
         if total_rows == 0:
+            self.duplicates_removed = 0
             return self.engine._empty_pair(scored)
+
+        # Apply strict deduplication based on User Rules (Rule 5 & 6)
+        vcol = '_Norm_Vendor' if '_Norm_Vendor' in scored.columns else self.vendor_col
+        icol = self.invoice_col
+        tcol = self.txn_id_col
+        dcol = self.date_col
+        acol = self.amount_col
+
+        seen_vendors = set()
+        seen_invoices = set()
+        seen_txn_ids = set()
+        seen_combos = set()
+        
+        keep_mask = []
+        duplicates_removed_count = 0
+        
+        for idx, row in scored.iterrows():
+            is_dup = False
+            
+            # 1. Vendor/Party Name
+            v = None
+            if vcol and vcol in row:
+                v = str(row[vcol]).strip().lower()
+                if v and v not in ('', 'nan', 'none', '—'):
+                    if v in seen_vendors:
+                        is_dup = True
+            
+            # 2. Invoice Number
+            inv = None
+            if icol and icol in row:
+                inv = str(row[icol]).strip().lower()
+                if inv and inv not in ('', 'nan', 'none', '—'):
+                    if inv in seen_invoices:
+                        is_dup = True
+                        
+            # 3. Transaction ID
+            tid = None
+            if tcol and tcol in row:
+                tid = str(row[tcol]).strip().lower()
+                if tid and tid not in ('', 'nan', 'none', '—'):
+                    if tid in seen_txn_ids:
+                        is_dup = True
+
+            # 4. Sample ID (if present in the ledger)
+            sid = None
+            for key in ['sample id', 'sample_id', 'sampleid']:
+                if key in row:
+                    sid = str(row[key]).strip().lower()
+                    if sid and sid not in ('', 'nan', 'none', '—'):
+                        if sid in seen_txn_ids:  # treat as unique transaction ID
+                            is_dup = True
+
+            # 5. Combination of date + amount + vendor
+            dt = str(row.get(dcol, ''))
+            amt = str(row.get(acol, ''))
+            vnd = str(row.get(vcol, ''))
+            combo = f"{dt}|{amt}|{vnd}"
+            if combo in seen_combos:
+                is_dup = True
+                
+            if is_dup:
+                duplicates_removed_count += 1
+                keep_mask.append(False)
+            else:
+                if v: seen_vendors.add(v)
+                if inv: seen_invoices.add(inv)
+                if tid: seen_txn_ids.add(tid)
+                seen_combos.add(combo)
+                keep_mask.append(True)
+
+        deduped_scored = scored[keep_mask].copy()
+        self.duplicates_removed = duplicates_removed_count
+        total_unique_available = len(deduped_scored)
 
         # Determine absolute counts
         if target_count is not None:
@@ -1628,7 +1715,7 @@ class AuditAnalyzer:
             toc_size = total_needed - tod_size
 
         tod, toc = self.engine.generate(
-            scored=scored,
+            scored=deduped_scored,  # Pass clean unique rows only
             sampling_basis=sampling_basis,
             tod_target=tod_size,
             toc_target=toc_size,
@@ -1641,9 +1728,7 @@ class AuditAnalyzer:
         actual_count = len(tod) + len(toc)
 
         # [FIXED-4] If vendor-cap constraints prevented reaching total_needed,
-        # redistribute the ALREADY-SELECTED rows at the requested ratio instead
-        # of calling engine.generate() again (which hits the same cap wall and
-        # produces the same or worse result).
+        # redistribute the ALREADY-SELECTED rows at the requested ratio
         if actual_count < total_needed and audit_type != 'small':
             new_tod_size = math.ceil(actual_count * tod_pct / 100.0)
             new_toc_size = actual_count - new_tod_size
@@ -1654,8 +1739,6 @@ class AuditAnalyzer:
                 f"{new_toc_size} TOC (target was {toc_size})"
             )
 
-            # Merge, re-sort by absolute value, then split at the new boundary.
-            # Preserve _Audit_Procedure labels correctly.
             all_selected = pd.concat([tod, toc])
             amt_col = self.amount_col
             if amt_col and amt_col in all_selected.columns:
@@ -1663,11 +1746,9 @@ class AuditAnalyzer:
                     by=amt_col, ascending=False, key=abs
                 )
 
-            # Re-apply audit labels using the engine's label helper
             tod_rows = all_selected.iloc[:new_tod_size]
             toc_rows = all_selected.iloc[new_tod_size:]
 
-            # Strip existing procedure columns so _add_labels can reapply cleanly
             proc_cols = [
                 '_Audit_Procedure', '_Selection_Rationale', '_Audit_Remarks',
                 '_Supporting_Doc_Status', '_Control_Objective',
@@ -1679,16 +1760,18 @@ class AuditAnalyzer:
             tod, toc = self.engine._add_labels(tod_rows, toc_rows, amt_col, self.category)
             actual_count = len(tod) + len(toc)
 
+        # Format strict non-repetition capping / deficit explanation (Rule 10)
         if actual_count < total_needed:
             self.sampling_deficit = {
                 "requested": total_needed,
                 "selected":  actual_count,
                 "deficit":   total_needed - actual_count,
                 "explanation": (
-                    f"Requested {total_needed} samples but only {actual_count} were "
-                    f"selected because the strict vendor repeat cap "
-                    f"(primary={self.config.vendor_cap_primary}) was hit, and "
-                    f"no other qualifying unique transactions remain in the ledger."
+                    f"Required sample size of {total_needed} could not be achieved because "
+                    f"strict duplicate removal was enforced to maintain unique sample list throughout the output. "
+                    f"Total duplicates removed: {self.duplicates_removed}. "
+                    f"Remaining unique samples available: {total_unique_available}. "
+                    f"Additional samples could not be selected because no further qualifying unique transactions exist in the ledger."
                 ),
             }
         else:
