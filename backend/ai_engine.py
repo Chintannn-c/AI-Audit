@@ -385,7 +385,48 @@ class AuditAIEngine:
     async def get_summary(self, category: str, stats: dict) -> dict:
         prompt = f"Expert auditor summary for {category}. Stats: {json.dumps(stats)}. Return JSON with 'summary' and 'focus'."
         res = await self.route_task('FAST_SCAN', {'prompt': prompt})
-        return res if res else {"summary": "Analysis failed.", "focus": "N/A"}
+        
+        # Enforce robust, safe post-processing to avoid minified React error #31 (invalid object as React child)
+        if not res or not isinstance(res, dict):
+            return {"summary": "Analysis complete. Please review transactions manually.", "focus": "AI Analysis"}
+            
+        # 1. Clean and normalize 'summary' field (MUST be a string)
+        summary_val = res.get('summary')
+        if isinstance(summary_val, dict):
+            stats_part = summary_val.get('stats', '')
+            comment_part = summary_val.get('auditor_comment', '')
+            if comment_part:
+                summary_str = f"{comment_part}"
+                if stats_part:
+                    summary_str += f" (Stats: {stats_part})"
+            else:
+                summary_str = json.dumps(summary_val)
+            res['summary'] = summary_str
+        elif summary_val is None:
+            if 'auditor_comment' in res:
+                res['summary'] = str(res['auditor_comment'])
+            else:
+                res['summary'] = "Analysis complete. Please review transactions manually."
+        else:
+            res['summary'] = str(summary_val)
+
+        # 2. Clean and normalize 'focus' field (MUST be a string)
+        focus_val = res.get('focus')
+        if isinstance(focus_val, dict):
+            res['focus'] = json.dumps(focus_val)
+        elif focus_val is None:
+            if 'stats' in res:
+                stats_val = res['stats']
+                if isinstance(stats_val, dict):
+                    res['focus'] = ", ".join(f"{k}: {v}" for k, v in stats_val.items())
+                else:
+                    res['focus'] = str(stats_val)
+            else:
+                res['focus'] = "AI Analysis"
+        else:
+            res['focus'] = str(focus_val)
+
+        return res
 
     async def vouch_invoice(self, extracted_text: str) -> dict:
         prompt = (

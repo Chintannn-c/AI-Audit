@@ -72,8 +72,8 @@ export default function SamplingPage({ setProcessing }) {
       setSamplingResults(r)
 
       // AI Insights
-      const focus = data.ai_insights?.focus || 'AI Analysis'
-      const summary = data.ai_insights?.summary || 'Analysis complete. Please review transactions manually.'
+      const focus = typeof data.ai_insights?.focus === 'object' ? JSON.stringify(data.ai_insights.focus) : (data.ai_insights?.focus || 'AI Analysis')
+      const summary = typeof data.ai_insights?.summary === 'object' ? JSON.stringify(data.ai_insights.summary) : (data.ai_insights?.summary || 'Analysis complete. Please review transactions manually.')
       setAiInsights({ focus, summary })
 
       // Chart data
@@ -345,8 +345,8 @@ export default function SamplingPage({ setProcessing }) {
             <div className="mt-16" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16, alignItems: 'center' }}>
               <div style={{ background: 'rgba(99,102,241,0.05)', padding: 20, borderRadius: 16, borderLeft: '4px solid var(--accent-primary)', height: '100%', display: 'flex', alignItems: 'center' }}>
                 <p className="text-secondary" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
-                  <strong>{results.ai_insights?.focus || 'AI Analysis'}</strong><br />
-                  {results.ai_insights?.summary || 'Analysis complete. Please review transactions manually.'}
+                  <strong>{typeof results.ai_insights?.focus === 'object' ? JSON.stringify(results.ai_insights.focus) : (results.ai_insights?.focus || 'AI Analysis')}</strong><br />
+                  {typeof results.ai_insights?.summary === 'object' ? JSON.stringify(results.ai_insights.summary) : (results.ai_insights?.summary || 'Analysis complete. Please review transactions manually.')}
                 </p>
               </div>
               <div style={{ height: 140, width: '100%', position: 'relative' }}>
